@@ -1,0 +1,14 @@
+#wtm_bulk_text{width:100%;max-width:900px;font-family:monospace}
+.wtm-bulk-table{border-collapse:collapse;width:100%;max-width:900px}
+.wtm-bulk-table th,.wtm-bulk-table td{border:1px solid #ddd;padding:8px;text-align:left}
+.wtm-bulk-table thead{background:#f7f7f7}
+.wtm-bulk-table tbody tr:nth-child(odd){background:#fbfbfb}
+
+/* Per-column paste UI */
+.wtm-column-paste{border:1px solid #e5e5e5;padding:10px;margin:12px 0;background:#fbfbfb}
+.wtm-column-paste legend{font-weight:600}
+.wtm-column-paste label{margin-right:6px}
+.wtm-column-paste select, .wtm-column-paste textarea{margin:6px 0;display:block}
+.wtm-mapping{margin:12px 0}
+.wtm-map-row{display:flex;gap:12px}
+.wtm-map-col{min-width:120px}

@@ -1,0 +1,10 @@
+/* Webtalize Menu (WTM) basic styles */
+.wtm-menu-container{margin:1rem 0;padding:0;}
+.wtm-category{margin-bottom:1.5rem}
+.wtm-menu-items{list-style:none;margin:0;padding:0}
+.wtm-menu-item{padding:0.5rem 0;border-bottom:1px solid #eee}
+.wtm-item-header{display:flex;justify-content:space-between;align-items:center}
+.wtm-item-name{font-weight:600;margin:0}
+.wtm-item-price{color:#333;margin-left:1rem}
+.wtm-item-description{color:#666;margin-top:0.25rem}
+.wtm-no-items,.wtm-no-categories{color:#999}
