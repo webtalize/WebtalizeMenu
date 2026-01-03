@@ -291,10 +291,12 @@ function wtm_handle_csv_import() {
     if (!isset($_POST['wtm_csv_import_nonce']) || !wp_verify_nonce($_POST['wtm_csv_import_nonce'],'wtm_csv_import_nonce')) wp_die('Security check failed');
 
     $parsed = [];
-    if (isset($_POST['wtm_bulk_json'])) {
+    if (isset($_POST['wtm_bulk_json']) && !empty($_POST['wtm_bulk_json'])) {
         $parsed = json_decode(wp_unslash($_POST['wtm_bulk_json']), true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $parsed = []; // or set an error
+            // Handle JSON error, maybe redirect back with an error message
+            wp_redirect(add_query_arg('wtm_bulk_errors', urlencode('Invalid data format.'), admin_url('edit.php?post_type=menu_item&page=wtm-csv-import')));
+            exit;
         }
     } else {
         $text = isset($_POST['wtm_bulk_text']) ? wp_unslash($_POST['wtm_bulk_text']) : '';
