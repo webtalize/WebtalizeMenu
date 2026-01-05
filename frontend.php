@@ -2,7 +2,7 @@
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
     wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.3');
-    wp_enqueue_script('wtm-scripts', WTM_PLUGIN_URL . 'js/wtm-quick-edit.js', array('jquery'), '1.0.3', true);
+    
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
 

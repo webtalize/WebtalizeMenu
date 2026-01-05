@@ -105,10 +105,10 @@ jQuery(document).ready(function($){
             validateNameExists($input);
             e.preventDefault();
         });
-        $(document).on('blur', '.wtm-bulk-name', function(){ setTimeout(()=>{$(this).next('.wtm-name-suggest').remove();},200); });
-
-        // also validate on blur to ensure state is accurate
-        $(document).on('blur', '.wtm-bulk-name', function(){ validateNameExists($(this)); setTimeout(()=>{$(this).next('.wtm-name-suggest').remove();},200); });
+        $(document).on('blur', '.wtm-bulk-name', function(){
+            validateNameExists($(this));
+            setTimeout(()=>{$(this).next('.wtm-name-suggest').remove();},200);
+        });
 
         // Description suggestions for textarea (show shorter matches)
         $(document).on('input', '.wtm-bulk-description', function(){ showSuggestions($(this), descDict, 'wtm-desc-suggest'); });
@@ -142,20 +142,6 @@ jQuery(document).ready(function($){
             e.preventDefault();
         });
         $(document).on('blur', '.wtm-bulk-category, .wtm-bulk-new-category', function(){ setTimeout(()=>{$(this).next('.wtm-cat-suggest').remove();},200); });
-
-        // Click suggestion to fill
-        $(document).on('mousedown', '.wtm-cat-suggest li', function(e) {
-            var $li = $(this);
-            var $input = $li.closest('td').find('.wtm-bulk-category');
-            $input.val($li.text());
-            $li.parent().remove();
-            e.preventDefault();
-        });
-
-        // Hide suggestion on blur
-        $(document).on('blur', '.wtm-bulk-category', function() {
-            setTimeout(()=>{$(this).next('.wtm-cat-suggest').remove();}, 200);
-        });
 
         // Validate rows on submit: inline messages for name/price/category; keep high-price confirm
         $(document).on('submit', '#wtm_bulk_add_form', function(e) {

@@ -20,7 +20,6 @@ function wtm_price_meta_box_callback($post) {
 
 function wtm_description_meta_box_callback($post) {
     $description = get_post_meta($post->ID, 'wtm_description', true);
-    wp_nonce_field('wtm_meta_box_nonce', 'wtm_meta_box_nonce');
     echo '<label for="wtm_description">' . esc_html__('Description:', 'webtalize-menu') . '</label>';
     echo '<textarea id="wtm_description" name="wtm_description" rows="4" cols="50">' . esc_textarea($description) . '</textarea>'; // Use esc_textarea
 }
@@ -44,19 +43,23 @@ function wtm_save_meta_boxes_data($post_id) {
 
     if (isset($_POST['wtm_price'])) {
         $price = sanitize_text_field($_POST['wtm_price']);
-        if (!empty($price) && !is_numeric($price)) {
+        if (!is_numeric($price)) {
             $price = '';
         }
-        update_post_meta($post_id, 'wtm_price', $price);
-    } else {
-        delete_post_meta($post_id, 'wtm_price');
+        if ($price !== '') {
+            update_post_meta($post_id, 'wtm_price', $price);
+        } else {
+            delete_post_meta($post_id, 'wtm_price');
+        }
     }
 
     if (isset($_POST['wtm_description'])) {
         $description = sanitize_textarea_field($_POST['wtm_description']); // Sanitize textarea
-        update_post_meta($post_id, 'wtm_description', $description);
-    } else {
-        delete_post_meta($post_id, 'wtm_description');
+        if ($description !== '') {
+            update_post_meta($post_id, 'wtm_description', $description);
+        } else {
+            delete_post_meta($post_id, 'wtm_description');
+        }
     }
 }
 add_action('save_post', 'wtm_save_meta_boxes_data');
@@ -66,14 +69,14 @@ add_filter('manage_menu_item_posts_columns', 'wtm_add_columns_to_menu_items_tabl
 function wtm_add_columns_to_menu_items_table($columns) {
     $new_columns = array();
     foreach ($columns as $key => $title) {
-        $new_columns[$key] = $title; // Copy existing columns first
         if ($key == 'date') { // Insert new columns before date
             $new_columns['wtm_price'] = __('Price', 'webtalize-menu');
             $new_columns['wtm_description'] = __('Description', 'webtalize-menu');
             $new_columns['menu_order'] = __('Order', 'webtalize-menu');
         }
+        $new_columns[$key] = $title;
     }
-    return $new_columns; // Now correctly returns the full modified array
+    return $new_columns;
 }
 
 // Display data in custom columns
@@ -160,15 +163,23 @@ function wtm_save_quick_edit_data($post_id) {
 
     if (isset($_POST['wtm_price'])) {
         $price = sanitize_text_field($_POST['wtm_price']);
-        if (!empty($price) && !is_numeric($price)) {
+        if (!is_numeric($price)) {
             $price = '';
         }
-        update_post_meta($post_id, 'wtm_price', $price);
+        if ($price !== '') {
+            update_post_meta($post_id, 'wtm_price', $price);
+        } else {
+            delete_post_meta($post_id, 'wtm_price');
+        }
     }
 
     if (isset($_POST['wtm_description'])) {
         $description = sanitize_textarea_field($_POST['wtm_description']);
-        update_post_meta($post_id, 'wtm_description', $description);
+        if ($description !== '') {
+            update_post_meta($post_id, 'wtm_description', $description);
+        } else {
+            delete_post_meta($post_id, 'wtm_description');
+        }
     }
 }
 
@@ -225,7 +236,7 @@ function wtm_enqueue_admin_scripts($hook) {
 
     // Enqueue Quick Edit script on the menu items list table
     if ($hook === 'edit.php' && isset($_GET['post_type']) && $_GET['post_type'] === 'menu_item') {
-        wp_enqueue_script('wtm-quick-edit', WTM_PLUGIN_URL . 'js/wtm-quick-edit.js', array('jquery', 'wp-data'), '1.0.1', true);
+        wp_enqueue_script('wtm-quick-edit', WTM_PLUGIN_URL . 'js/wtm-quick-edit.js', array('jquery', 'wp-data', 'wp-i18n', 'wp-hooks'), '1.0.1', true);
     }
     
     // allow CPT pages, Tools fallback pages and top-level menu page
@@ -761,7 +772,6 @@ function wtm_intelligent_parse_bulk_text($text, &$debug = []) {
         $clean_line = preg_replace('/\([^)]+\)/', '', $line);
 
         // Give more weight to lines that look like data (contain numbers)
-        $weight = preg_match('/\d/', $line) ? 2 : 1;
         $weight = preg_match('/\d/', $clean_line) ? 2 : 1;
         foreach ($delimiters as $delim => &$count) {
             $count += substr_count($line, $delim) * $weight;
