@@ -239,6 +239,12 @@ function wtm_enqueue_admin_scripts($hook) {
         wp_enqueue_script('wtm-quick-edit', WTM_PLUGIN_URL . 'js/wtm-quick-edit.js', array('jquery', 'wp-data', 'wp-i18n', 'wp-hooks'), '1.0.1', true);
     }
     
+    // Enqueue scripts for Menu Category management (Image Upload)
+    if (($hook === 'term.php' || $hook === 'edit-tags.php') && isset($_GET['taxonomy']) && $_GET['taxonomy'] === 'menu_category') {
+        wp_enqueue_media();
+        wp_enqueue_script('wtm-category-media', WTM_PLUGIN_URL . 'js/wtm-category-media.js', array('jquery', 'inline-edit-tax'), '1.1.0', true);
+    }
+
     // allow CPT pages, Tools fallback pages and top-level menu page
     if (false === strpos($hook,'wtm-csv-import') && false === strpos($hook,'wtm-bulk-add') && false === strpos($hook,'wtm-main') && false === strpos($hook,'wtm-reorder')) return;
     if (false !== strpos($hook,'wtm-csv-import')) {
@@ -1044,4 +1050,674 @@ function wtm_parse_bulk_text($text, &$debug = []) {
         }
     }
     return $items;
+}
+
+// Category Management: Add Image and Sort Order fields
+
+// Add fields to "Add New Category" form
+add_action('menu_category_add_form_fields', 'wtm_menu_category_add_form_fields');
+function wtm_menu_category_add_form_fields($taxonomy) {
+    ?>
+    <div class="form-field term-image-wrap">
+        <label><?php _e('Category Image', 'webtalize-menu'); ?></label>
+        <div id="wtm-category-image-preview" class="wtm-category-image-preview" style="margin-bottom:10px;"></div>
+        <input type="hidden" name="wtm_category_image_id" id="wtm_category_image_id" class="wtm-category-image-id" value="">
+        <button type="button" class="button wtm-upload-image-btn"><?php _e('Upload/Add Image', 'webtalize-menu'); ?></button>
+        <button type="button" class="button wtm-remove-image-btn" style="display:none;"><?php _e('Remove Image', 'webtalize-menu'); ?></button>
+    </div>
+    <div class="form-field term-order-wrap">
+        <label for="wtm_category_order"><?php _e('Sort Order', 'webtalize-menu'); ?></label>
+        <input type="number" name="wtm_category_order" id="wtm_category_order" value="0">
+        <p><?php _e('Numeric value for sorting categories.', 'webtalize-menu'); ?></p>
+    </div>
+    <?php
+}
+
+// Add fields to "Edit Category" form
+add_action('menu_category_edit_form_fields', 'wtm_menu_category_edit_form_fields', 10, 2);
+function wtm_menu_category_edit_form_fields($term, $taxonomy) {
+    $image_id = get_term_meta($term->term_id, 'wtm_category_image_id', true);
+    $order = get_term_meta($term->term_id, 'wtm_category_order', true);
+    if ($order === '') $order = 0;
+    $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'thumbnail') : '';
+    
+    if (is_ssl() && !empty($image_url)) {
+        $image_url = set_url_scheme($image_url, 'https');
+    }
+    
+    ?>
+    <tr class="form-field term-image-wrap">
+        <th scope="row"><label><?php _e('Category Image', 'webtalize-menu'); ?></label></th>
+        <td>
+            <div id="wtm-category-image-preview" class="wtm-category-image-preview" style="margin-bottom:10px;">
+                <?php if ($image_url) echo '<img src="' . esc_url($image_url) . '" style="max-width:150px;height:auto;" />'; ?>
+            </div>
+            <input type="hidden" name="wtm_category_image_id" id="wtm_category_image_id" class="wtm-category-image-id" value="<?php echo esc_attr($image_id); ?>">
+            <button type="button" class="button wtm-upload-image-btn"><?php _e('Upload/Add Image', 'webtalize-menu'); ?></button>
+            <button type="button" class="button wtm-remove-image-btn" <?php echo $image_id ? '' : 'style="display:none;"'; ?>><?php _e('Remove Image', 'webtalize-menu'); ?></button>
+        </td>
+    </tr>
+    <tr class="form-field term-order-wrap">
+        <th scope="row"><label for="wtm_category_order"><?php _e('Sort Order', 'webtalize-menu'); ?></label></th>
+        <td>
+            <input type="number" name="wtm_category_order" id="wtm_category_order" value="<?php echo esc_attr($order); ?>">
+            <p class="description"><?php _e('Numeric value for sorting categories.', 'webtalize-menu'); ?></p>
+        </td>
+    </tr>
+    <?php
+}
+
+// Save Category Meta
+add_action('created_menu_category', 'wtm_save_menu_category_meta');
+add_action('edited_menu_category', 'wtm_save_menu_category_meta');
+function wtm_save_menu_category_meta($term_id) {
+    if (isset($_POST['wtm_category_image_id'])) {
+        $image_id = sanitize_text_field($_POST['wtm_category_image_id']);
+        if (!empty($image_id)) {
+            update_term_meta($term_id, 'wtm_category_image_id', $image_id);
+        } else {
+            // Delete meta if image ID is empty (removed image)
+            delete_term_meta($term_id, 'wtm_category_image_id');
+        }
+    }
+    if (isset($_POST['wtm_category_order'])) {
+        update_term_meta($term_id, 'wtm_category_order', intval($_POST['wtm_category_order']));
+    }
+}
+
+// Add Columns to Category List
+add_filter('manage_edit-menu_category_columns', 'wtm_menu_category_columns');
+function wtm_menu_category_columns($columns) {
+    $new_columns = array();
+    foreach ($columns as $key => $val) {
+        if ($key === 'name') {
+            $new_columns['thumb'] = __('Image', 'webtalize-menu');
+        }
+        $new_columns[$key] = $val;
+    }
+    $new_columns['order'] = __('Order', 'webtalize-menu');
+    return $new_columns;
+}
+
+add_action('manage_menu_category_custom_column', 'wtm_menu_category_custom_column', 10, 3);
+function wtm_menu_category_custom_column($content, $column_name, $term_id) {
+    if ($column_name === 'thumb') {
+        $image_id = get_term_meta($term_id, 'wtm_category_image_id', true);
+        $image_url = '';
+        if ($image_id) {
+            $img = wp_get_attachment_image_src($image_id, 'thumbnail');
+            if ($img) {
+                $image_url = $img[0];
+                if (is_ssl()) $image_url = set_url_scheme($image_url, 'https');
+            }
+        }
+        $out = $image_url ? '<img src="' . esc_url($image_url) . '" style="width:50px;height:auto;" />' : '';
+        $out .= '<span class="hidden wtm-image-data" data-id="'.esc_attr($image_id).'" data-url="'.esc_attr($image_url).'"></span>';
+        return $out;
+    }
+    if ($column_name === 'order') {
+        $order = get_term_meta($term_id, 'wtm_category_order', true);
+        if ($order === '' || $order === false) {
+            $order = 0;
+        }
+        return esc_html($order) . '<span class="hidden wtm-order-data" data-val="'.esc_attr($order).'"></span>';
+    }
+    return $content;
+}
+
+// Make Order column sortable
+add_filter('manage_edit-menu_category_sortable_columns', 'wtm_menu_category_sortable_columns');
+function wtm_menu_category_sortable_columns($columns) {
+    // Map 'order' to 'meta_value_num' so WordPress knows it's a meta field
+    // We'll override the actual sorting in terms_clauses
+    $columns['order'] = 'meta_value_num';
+    return $columns;
+}
+
+// Debug: Output visible debug info on the page
+add_action('admin_notices', 'wtm_debug_admin_notice');
+function wtm_debug_admin_notice() {
+    if (!isset($_GET['taxonomy']) || $_GET['taxonomy'] !== 'menu_category') {
+        return;
+    }
+    $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'not set';
+    $order = isset($_GET['order']) ? $_GET['order'] : 'not set';
+    echo '<div class="notice notice-info is-dismissible"><p>';
+    echo '<strong>WTM Debug:</strong> orderby=' . esc_html($orderby) . ', order=' . esc_html($order);
+    echo '</p></div>';
+}
+
+// Handle sorting by Order column using pre_get_terms  
+add_action('pre_get_terms', 'wtm_menu_category_pre_get_terms');
+function wtm_menu_category_pre_get_terms($query) {
+    // Only apply to menu_category taxonomy on the edit-tags.php admin page
+    if (!is_admin() || !isset($_GET['taxonomy']) || $_GET['taxonomy'] !== 'menu_category') {
+        return;
+    }
+    
+    // Check if we're ordering by 'order' OR 'meta_value_num' (WordPress converts 'order' to 'meta_value_num' in URL)
+    $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : '';
+    if ($orderby !== 'order' && $orderby !== 'meta_value_num') {
+        return;
+    }
+    
+    // Set meta_key and orderby to meta_value_num so WordPress knows we're sorting by meta
+    // But we'll override the JOIN in terms_clauses to use LEFT JOIN instead of INNER JOIN
+    $query->query_vars['meta_key'] = 'wtm_category_order';
+    $query->query_vars['orderby'] = 'meta_value_num';
+    
+    // Set the order direction
+    $order = isset($_GET['order']) ? strtoupper(sanitize_text_field($_GET['order'])) : 'ASC';
+    if ($order !== 'ASC' && $order !== 'DESC') {
+        $order = 'ASC';
+    }
+    $query->query_vars['order'] = $order;
+}
+
+// Handle sorting using terms_clauses
+// Use priority 999 to run LAST, after all other filters, so we can override completely
+add_filter('terms_clauses', 'wtm_menu_category_orderby_clauses', 999, 3);
+function wtm_menu_category_orderby_clauses($clauses, $taxonomies, $args) {
+    // Debug: Always log when filter is called (for troubleshooting)
+    static $debug_filter_called = false;
+    if (!$debug_filter_called && is_admin() && isset($_GET['taxonomy']) && $_GET['taxonomy'] === 'menu_category') {
+        add_action('admin_footer', function() use ($taxonomies, $args) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("=== WTM terms_clauses Filter Called ===");';
+            echo 'console.log("GET taxonomy: ' . (isset($_GET['taxonomy']) ? esc_js($_GET['taxonomy']) : 'not set') . '");';
+            echo 'console.log("GET orderby: ' . (isset($_GET['orderby']) ? esc_js($_GET['orderby']) : 'not set') . '");';
+            echo 'console.log("GET order: ' . (isset($_GET['order']) ? esc_js($_GET['order']) : 'not set') . '");';
+            echo 'console.log("Args orderby: ' . (isset($args['orderby']) ? esc_js($args['orderby']) : 'not set') . '");';
+            echo 'console.log("Args meta_key: ' . (isset($args['meta_key']) ? esc_js($args['meta_key']) : 'not set') . '");';
+            echo 'console.log("Taxonomies: ' . esc_js(is_array($taxonomies) ? implode(', ', $taxonomies) : $taxonomies) . '");';
+            echo 'console.log("================================");';
+            echo '</script>';
+        }, 999);
+        $debug_filter_called = true;
+    }
+    
+    // Only apply in admin area
+    if (!is_admin()) {
+        return $clauses;
+    }
+    
+    // Only apply on the edit-tags.php page for menu_category taxonomy
+    if (!isset($_GET['taxonomy']) || $_GET['taxonomy'] !== 'menu_category') {
+        return $clauses;
+    }
+    
+    // Convert to array if it's a string
+    $tax_array = is_array($taxonomies) ? $taxonomies : array($taxonomies);
+    
+    // Also check if menu_category is in the taxonomies array
+    if (!empty($tax_array) && !in_array('menu_category', $tax_array)) {
+        return $clauses;
+    }
+    
+    // Check if we're ordering by 'order' OR 'meta_value_num' (WordPress converts 'order' to 'meta_value_num' in URL)
+    // The column key is 'order' as defined in manage_edit-menu_category_sortable_columns
+    // WordPress converts it to 'meta_value_num' in the URL, and meta_key might not be set yet
+    $is_ordering_by_order = false;
+    $get_orderby = isset($_GET['orderby']) ? $_GET['orderby'] : '';
+    $args_orderby = isset($args['orderby']) ? $args['orderby'] : '';
+    $args_meta_key = isset($args['meta_key']) ? $args['meta_key'] : '';
+    
+    if ($get_orderby === 'order' || $get_orderby === 'meta_value_num') {
+        $is_ordering_by_order = true;
+    } elseif ($args_orderby === 'meta_value_num') {
+        // If orderby is meta_value_num, check if meta_key matches OR if it's empty (might be set in pre_get_terms)
+        if ($args_meta_key === 'wtm_category_order' || empty($args_meta_key)) {
+            $is_ordering_by_order = true;
+        }
+    }
+    
+    // Debug: Log if we're not ordering by order
+    if (!$is_ordering_by_order) {
+        static $debug_not_ordering = false;
+        if (!$debug_not_ordering && isset($_GET['orderby'])) {
+            add_action('admin_footer', function() use ($args) {
+                echo '<script type="text/javascript">';
+                echo 'console.log("⚠️ WTM: Filter called but NOT ordering by order");';
+                echo 'console.log("GET orderby: ' . (isset($_GET['orderby']) ? esc_js($_GET['orderby']) : 'not set') . '");';
+                echo 'console.log("Args orderby: ' . (isset($args['orderby']) ? esc_js($args['orderby']) : 'not set') . '");';
+                echo 'console.log("Args meta_key: ' . (isset($args['meta_key']) ? esc_js($args['meta_key']) : 'not set') . '");';
+                echo '</script>';
+            }, 999);
+            $debug_not_ordering = true;
+        }
+        return $clauses;
+    }
+    
+    // Output debug info to console
+    static $debug_initial = false;
+    if (!$debug_initial) {
+        add_action('admin_footer', function() use ($args) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("=== WTM terms_clauses Debug ===");';
+            echo 'console.log("Filter was called for orderby=order");';
+            echo 'console.log("GET orderby: ' . (isset($_GET['orderby']) ? esc_js($_GET['orderby']) : 'not set') . '");';
+            echo 'console.log("GET order: ' . (isset($_GET['order']) ? esc_js($_GET['order']) : 'not set') . '");';
+            echo 'console.log("Args orderby: ' . (isset($args['orderby']) ? esc_js($args['orderby']) : 'not set') . '");';
+            echo 'console.log("Args meta_key: ' . (isset($args['meta_key']) ? esc_js($args['meta_key']) : 'not set') . '");';
+            echo '</script>';
+        }, 999);
+        $debug_initial = true;
+    }
+    
+    global $wpdb;
+    
+    // Get order direction
+    $order = 'ASC';
+    if (isset($args['order']) && !empty($args['order'])) {
+        $order = strtoupper($args['order']);
+    } elseif (isset($_GET['order']) && !empty($_GET['order'])) {
+        $order = strtoupper(sanitize_text_field($_GET['order']));
+    }
+    if ($order !== 'ASC' && $order !== 'DESC') {
+        $order = 'ASC';
+    }
+    
+    // Initialize clauses if they don't exist
+    if (!isset($clauses['join'])) {
+        $clauses['join'] = '';
+    }
+    if (!isset($clauses['where'])) {
+        $clauses['where'] = '';
+    }
+    if (!isset($clauses['fields'])) {
+        $clauses['fields'] = '';
+    }
+    
+    // Check if FIELDS clause references wp_termmeta (which we removed)
+    // WordPress might add wp_termmeta.meta_value to the SELECT, which would fail
+    if (!empty($clauses['fields']) && strpos($clauses['fields'], 'wp_termmeta') !== false && strpos($clauses['fields'], 'wtm_order_meta') === false) {
+        $old_fields = $clauses['fields'];
+        // Remove wp_termmeta references from FIELDS since we removed that JOIN
+        $clauses['fields'] = preg_replace('/,\s*wp_termmeta\.\w+/i', '', $clauses['fields']);
+        $clauses['fields'] = preg_replace('/wp_termmeta\.\w+\s*,/i', '', $clauses['fields']);
+        // Also handle if it's the only field or at the start
+        $clauses['fields'] = preg_replace('/^\s*wp_termmeta\.\w+\s*/i', '', $clauses['fields']);
+        
+        add_action('admin_footer', function() use ($old_fields, $clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("⚠️ Removed wp_termmeta references from FIELDS clause");';
+            echo 'console.log("Old FIELDS: ' . esc_js(substr($old_fields, 0, 200)) . '");';
+            echo 'console.log("New FIELDS: ' . esc_js(substr($clauses['fields'], 0, 200)) . '");';
+            echo '</script>';
+        }, 999);
+    }
+    
+    // Always log the FIELDS clause for debugging
+    static $debug_fields = false;
+    if (!$debug_fields && !empty($clauses['fields'])) {
+        add_action('admin_footer', function() use ($clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("=== WTM FIELDS Clause ===");';
+            echo 'console.log("FIELDS: ' . esc_js(substr($clauses['fields'], 0, 300)) . '");';
+            echo 'console.log("Contains wp_termmeta: ' . (strpos($clauses['fields'], 'wp_termmeta') !== false ? 'YES' : 'NO') . '");';
+            echo 'console.log("=========================");';
+            echo '</script>';
+        }, 999);
+        $debug_fields = true;
+    }
+    
+    // IMPORTANT: Don't modify WHERE clause - only JOIN, ORDERBY, and FIELDS (if needed)
+    
+    // Output initial clauses to console
+    static $debug_clauses = false;
+    if (!$debug_clauses) {
+        $initial_join = isset($clauses['join']) ? $clauses['join'] : '';
+        $initial_where = isset($clauses['where']) ? $clauses['where'] : '';
+        $initial_orderby = isset($clauses['orderby']) ? $clauses['orderby'] : '';
+        add_action('admin_footer', function() use ($initial_join, $initial_where, $initial_orderby) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("=== WTM Initial SQL Clauses ===");';
+            echo 'console.log("Initial JOIN: ' . esc_js(substr($initial_join, 0, 400)) . '");';
+            echo 'console.log("Initial WHERE: ' . esc_js(substr($initial_where, 0, 400)) . '");';
+            echo 'console.log("Initial ORDERBY: ' . esc_js(substr($initial_orderby, 0, 200)) . '");';
+            echo '</script>';
+        }, 999);
+        $debug_clauses = true;
+    }
+    
+    // Remove WordPress's INNER JOIN for wp_termmeta if it exists
+    // WordPress might add this even without meta_key if it thinks we're sorting by meta
+    // This INNER JOIN excludes terms without meta values, which is why categories disappear
+    $old_join = isset($clauses['join']) ? $clauses['join'] : '';
+    if (strpos($clauses['join'], 'wp_termmeta') !== false && strpos($clauses['join'], 'wtm_order_meta') === false) {
+        // Remove WordPress's INNER JOIN for wp_termmeta (the one without an alias)
+        // Pattern: INNER JOIN wp_termmeta ON ( t.term_id = wp_termmeta.term_id )
+        // More flexible pattern to match various spacing
+        $clauses['join'] = preg_replace('/\s*INNER\s+JOIN\s+wp_termmeta\s+ON\s*\([^)]+\)/i', '', $clauses['join']);
+        // Clean up any double spaces that might result
+        $clauses['join'] = preg_replace('/\s+/', ' ', $clauses['join']);
+        $clauses['join'] = trim($clauses['join']);
+        
+        // Log removal to console
+        add_action('admin_footer', function() use ($old_join, $clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("⚠️ Removed WordPress INNER JOIN for wp_termmeta");';
+            echo 'console.log("Old JOIN: ' . esc_js(substr($old_join, 0, 400)) . '");';
+            echo 'console.log("New JOIN: ' . esc_js(substr($clauses['join'], 0, 400)) . '");';
+            echo '</script>';
+        }, 999);
+    } else {
+        // Log that no removal was needed
+        add_action('admin_footer', function() use ($clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("✓ No wp_termmeta INNER JOIN found (or already using wtm_order_meta)");';
+            echo 'console.log("Current JOIN: ' . esc_js(substr(isset($clauses['join']) ? $clauses['join'] : '', 0, 400)) . '");';
+            echo '</script>';
+        }, 999);
+    }
+    
+    // Remove the WHERE clause condition that references wp_termmeta.meta_key if it exists
+    // WordPress adds: wp_termmeta.meta_key = 'wtm_category_order' to WHERE
+    // This condition requires the INNER JOIN and excludes terms without meta
+    if (isset($clauses['where']) && strpos($clauses['where'], 'wp_termmeta.meta_key') !== false) {
+        $old_where = $clauses['where'];
+        // Remove the meta_key condition from WHERE clause
+        // Pattern: AND ( wp_termmeta.meta_key = 'wtm_category_order' )
+        // More flexible pattern to match various spacing
+        $clauses['where'] = preg_replace('/\s*AND\s*\(\s*wp_termmeta\.meta_key\s*=\s*[\'"]wtm_category_order[\'"]\s*\)/i', '', $clauses['where']);
+        // Clean up any double spaces
+        $clauses['where'] = preg_replace('/\s+/', ' ', $clauses['where']);
+        $clauses['where'] = trim($clauses['where']);
+        
+        // Log removal to console
+        add_action('admin_footer', function() use ($old_where, $clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("⚠️ Removed wp_termmeta.meta_key condition from WHERE");';
+            echo 'console.log("Old WHERE: ' . esc_js(substr($old_where, 0, 400)) . '");';
+            echo 'console.log("New WHERE: ' . esc_js(substr(isset($clauses['where']) ? $clauses['where'] : '', 0, 400)) . '");';
+            echo '</script>';
+        }, 999);
+    } else {
+        // Log that no removal was needed
+        add_action('admin_footer', function() use ($clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("✓ No wp_termmeta.meta_key condition found in WHERE");';
+            echo 'console.log("Current WHERE: ' . esc_js(substr(isset($clauses['where']) ? $clauses['where'] : '', 0, 400)) . '");';
+            echo '</script>';
+        }, 999);
+    }
+    
+    // Add our LEFT JOIN (only if not already present)
+    // Use LEFT JOIN to include all terms, even those without order meta
+    // WordPress uses 't' as the alias for wp_terms table in term queries
+    if (strpos($clauses['join'], 'wtm_order_meta') === false) {
+        $clauses['join'] .= " LEFT JOIN {$wpdb->termmeta} AS wtm_order_meta ON t.term_id = wtm_order_meta.term_id AND wtm_order_meta.meta_key = 'wtm_category_order'";
+        
+        // Log addition to console
+        add_action('admin_footer', function() use ($clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("Added LEFT JOIN with wtm_order_meta alias");';
+            echo 'console.log("Final JOIN: ' . esc_js(substr($clauses['join'], 0, 400)) . '");';
+            echo '</script>';
+        }, 999);
+    }
+    
+    // IMPORTANT: Make sure the JOIN exists before setting ORDERBY
+    $has_wtm_join = strpos($clauses['join'], 'wtm_order_meta') !== false;
+    
+    if (!$has_wtm_join) {
+        add_action('admin_footer', function() use ($clauses) {
+            echo '<script type="text/javascript">';
+            echo 'console.error("⚠️ CRITICAL ERROR: JOIN with wtm_order_meta is missing!");';
+            echo 'console.log("JOIN: ' . esc_js(substr($clauses['join'], 0, 400)) . '");';
+            echo '</script>';
+        }, 999);
+        return $clauses;
+    }
+    
+    // Get the old orderby to check what WordPress set
+    $old_orderby = isset($clauses['orderby']) ? $clauses['orderby'] : '';
+    
+    // CRITICAL FIX: The SQL error shows "ORDER BY" keyword is missing
+    // WordPress's terms_clauses['orderby'] should contain ONLY the ordering expressions
+    // WordPress will prepend "ORDER BY " when building the SQL
+    // But the SQL error suggests WordPress is NOT adding "ORDER BY" - this might be because
+    // WordPress checks if orderby matches query_vars['orderby'], and if not, it might skip it
+    // However, we're setting orderby='meta_value_num' in pre_get_terms, so it should work
+    
+    // Remove any "ORDER BY" keyword if WordPress already added it (shouldn't happen, but just in case)
+    $old_orderby_clean = preg_replace('/^\s*ORDER\s+BY\s+/i', '', trim($old_orderby));
+    
+    // FIX: Include "ORDER BY" explicitly - WordPress is NOT adding it automatically
+    // Do NOT include direction (ASC/DESC) - let WordPress add it based on query_vars['order']
+    // Use '0' as default for NULL/empty values so they sort as 0
+    // Put NULL/0 values at END regardless of ASC/DESC direction
+    // First CASE: Always ASC to put real values (0) first, NULL/0 (1) last
+    // Second: Sort by actual value with direction (ASC or DESC) - use 999999 for NULL/0 so they stay at end
+    // Third: term_id as tiebreaker with same direction
+    // FIX: WordPress only adds direction to the LAST expression in ORDER BY
+    // So we need to add direction to the second expression ourselves
+    // - CASE: Always ASC (ensures NULL/0 go to end) 
+    // - Second (value sort): Use $order variable (ASC or DESC) - we add it explicitly
+    // - Third (term_id): WordPress will add direction automatically (matches $order)
+    $clauses['orderby'] = "ORDER BY CASE WHEN COALESCE(NULLIF(wtm_order_meta.meta_value, ''), '0') IS NULL OR CAST(COALESCE(NULLIF(wtm_order_meta.meta_value, ''), '0') AS SIGNED) = 0 THEN 1 ELSE 0 END ASC, CAST(COALESCE(NULLIF(wtm_order_meta.meta_value, ''), '999999') AS SIGNED) {$order}, t.term_id";
+    
+    // Debug: Log what order value we're using
+    add_action('admin_footer', function() use ($order, $clauses) {
+        echo '<script type="text/javascript">';
+        echo 'console.log("=== WTM ORDERBY Direction Debug ===");';
+        echo 'console.log("Order direction variable: ' . esc_js($order) . '");';
+        echo 'console.log("Full ORDERBY clause: ' . esc_js($clauses['orderby']) . '");';
+        echo 'console.log("Should contain: CAST(...) ' . esc_js($order) . '");';
+        echo '</script>';
+    }, 999);
+    
+    // Include direction explicitly since WordPress is NOT adding it automatically
+    // First CASE always ASC (ensures NULL/0 go to end)
+    // Second and third use $order (ASC or DESC) from query_vars
+    
+    // Debug: Show what we're setting
+    add_action('admin_footer', function() use ($clauses, $old_orderby, $order) {
+        echo '<script type="text/javascript">';
+        echo 'console.log("=== WTM ORDERBY Setting (FIXED) ===");';
+        echo 'console.log("Old ORDERBY: ' . esc_js($old_orderby) . '");';
+        echo 'console.log("New ORDERBY: ' . esc_js($clauses['orderby']) . '");';
+        echo 'console.log("Order direction: ' . esc_js($order) . '");';
+        echo 'console.log("Expected final SQL should have: ORDER BY ' . esc_js($clauses['orderby']) . '");';
+        echo '</script>';
+    }, 999);
+    
+    // Debug: Verify the JOIN exists before we set ORDERBY
+    add_action('admin_footer', function() use ($clauses) {
+        $has_join = strpos($clauses['join'], 'wtm_order_meta') !== false;
+        echo '<script type="text/javascript">';
+        echo 'console.log("=== WTM ORDERBY Check ===");';
+        echo 'console.log("JOIN contains wtm_order_meta: ' . ($has_join ? 'YES' : 'NO') . '");';
+        echo 'console.log("ORDERBY: ' . esc_js($clauses['orderby']) . '");';
+        if (!$has_join) {
+            echo 'console.error("⚠️ ERROR: ORDERBY references wtm_order_meta but JOIN is missing!");';
+        }
+        echo '</script>';
+    }, 999);
+    
+    // Debug: Log the ORDERBY change
+    add_action('admin_footer', function() use ($old_orderby, $clauses, $order) {
+        echo '<script type="text/javascript">';
+        echo 'console.log("=== WTM ORDERBY Override ===");';
+        echo 'console.log("Old ORDERBY: ' . esc_js($old_orderby) . '");';
+        echo 'console.log("New ORDERBY: ' . esc_js($clauses['orderby']) . '");';
+        echo 'console.log("Order direction: ' . esc_js($order) . '");';
+        echo 'console.log("===========================");';
+        echo '</script>';
+    }, 999);
+    
+    // Output final clauses to console
+    static $debug_final = false;
+    if (!$debug_final) {
+        add_action('admin_footer', function() use ($clauses, $order) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("=== WTM Final SQL Clauses ===");';
+            echo 'console.log("Final JOIN: ' . esc_js(substr(isset($clauses['join']) ? $clauses['join'] : '', 0, 400)) . '");';
+            echo 'console.log("Final WHERE: ' . esc_js(substr(isset($clauses['where']) ? $clauses['where'] : '', 0, 400)) . '");';
+            echo 'console.log("Final ORDERBY: ' . esc_js(isset($clauses['orderby']) ? $clauses['orderby'] : 'not set') . '");';
+            echo 'console.log("Order direction: ' . esc_js($order) . '");';
+            echo 'console.log("============================");';
+            echo '</script>';
+        }, 999);
+        $debug_final = true;
+    }
+    
+    return $clauses;
+}
+
+// Note: We don't use get_terms_orderby filter because it runs before the JOIN is added
+// All sorting is handled in terms_clauses filter where we have access to the JOIN
+
+// Debug: Log what get_terms actually returns
+add_filter('get_terms', 'wtm_debug_get_terms_results', 10, 4);
+function wtm_debug_get_terms_results($terms, $taxonomies, $args, $term_query) {
+    // Only log when sorting by order or meta_value_num
+    if (!is_admin() || !isset($_GET['taxonomy']) || $_GET['taxonomy'] !== 'menu_category') {
+        return $terms;
+    }
+    
+    $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : '';
+    if ($orderby !== 'order' && $orderby !== 'meta_value_num') {
+        return $terms;
+    }
+    
+    // Check if this is a COUNT query (fields = count) - these might fail differently
+    $is_count_query = isset($args['fields']) && $args['fields'] === 'count';
+    
+    $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : '';
+    if ($orderby !== 'order' && $orderby !== 'meta_value_num') {
+        return $terms;
+    }
+    
+    static $query_count = 0;
+    $query_count++;
+    
+    // Try to get the actual SQL query from the term_query object
+    $sql_debug = '';
+    if (is_object($term_query)) {
+        // Try different methods to get SQL
+        if (property_exists($term_query, 'sql')) {
+            $sql_debug = $term_query->sql;
+        } elseif (method_exists($term_query, 'get_sql')) {
+            try {
+                $sql_debug = $term_query->get_sql();
+            } catch (Exception $e) {
+                $sql_debug = 'Error: ' . $e->getMessage();
+            }
+        } elseif (property_exists($term_query, 'request')) {
+            $sql_debug = $term_query->request;
+        }
+        
+        // Also check for database errors
+        global $wpdb;
+        if (!empty($wpdb->last_error)) {
+            $sql_debug .= ' | DB Error: ' . $wpdb->last_error;
+        }
+    }
+    
+    if (is_array($terms)) {
+        $term_count = count($terms);
+        $term_ids = array();
+        $term_data = array(); // Store term ID, name, and order value
+        
+        foreach ($terms as $term) {
+            if (is_object($term) && isset($term->term_id)) {
+                $term_ids[] = $term->term_id;
+                $order_value = get_term_meta($term->term_id, 'wtm_category_order', true);
+                $term_data[] = array(
+                    'id' => $term->term_id,
+                    'name' => isset($term->name) ? $term->name : 'N/A',
+                    'order' => $order_value !== '' && $order_value !== false ? $order_value : 'NULL/empty'
+                );
+            }
+        }
+        
+        add_action('admin_footer', function() use ($term_count, $term_ids, $query_count, $args, $sql_debug, $term_data) {
+            echo '<script type="text/javascript">';
+            echo 'console.log("=== WTM get_terms Results (Query #' . $query_count . ') ===");';
+            echo 'console.log("Number of terms returned: ' . $term_count . '");';
+            echo 'console.log("");';
+            echo 'console.log("📊 CATEGORY META VALUES (wtm_category_order):");';
+            echo 'console.log("==========================================");';
+            
+            if ($term_count > 0) {
+                // Show all terms with their meta values
+                $display_count = min($term_count, 50); // Show up to 50 terms
+                for ($i = 0; $i < $display_count; $i++) {
+                    $data = $term_data[$i];
+                    $order_display = $data['order'] === 'NULL/empty' ? 'NULL/empty (will sort as 0)' : $data['order'];
+                    echo 'console.log("' . ($i + 1) . '. ID: ' . $data['id'] . ' | Name: ' . esc_js($data['name']) . ' | meta_value: ' . esc_js($order_display) . '");';
+                }
+                
+                if ($term_count > 50) {
+                    echo 'console.log("... and ' . ($term_count - 50) . ' more terms");';
+                }
+                
+                echo 'console.log("");';
+                
+                // Summary statistics
+                $null_count = 0;
+                $has_value_count = 0;
+                $order_values = array();
+                foreach ($term_data as $data) {
+                    if ($data['order'] === 'NULL/empty') {
+                        $null_count++;
+                    } else {
+                        $has_value_count++;
+                        $order_values[] = $data['order'];
+                    }
+                }
+                
+                echo 'console.log("📈 SUMMARY:");';
+                echo 'console.log("  - Terms with order values: ' . $has_value_count . '");';
+                echo 'console.log("  - Terms with NULL/empty order: ' . $null_count . '");';
+                if ($has_value_count > 0) {
+                    echo 'console.log("  - Order value range: ' . min($order_values) . ' to ' . max($order_values) . '");';
+                }
+                
+                if ($null_count === $term_count) {
+                    echo 'console.warn("⚠️ ALL categories have NULL/empty order values!");';
+                    echo 'console.warn("⚠️ They will all sort as 0, then by term_id (which may look like sorting by name)");';
+                    echo 'console.warn("⚠️ Please set Sort Order values using Quick Edit!");';
+                } elseif ($null_count > 0) {
+                    echo 'console.warn("⚠️ Some categories (' . $null_count . ') have NULL/empty order values - they will sort as 0");';
+                }
+            } else {
+                echo 'console.error("⚠️ NO TERMS RETURNED - This is why categories disappear!");';
+            }
+            
+            echo 'console.log("");';
+            echo 'console.log("Args fields: ' . (isset($args['fields']) ? esc_js($args['fields']) : 'not set') . '");';
+            if (!empty($sql_debug)) {
+                // Output full SQL query - split into multiple console.log if too long
+                $sql_length = strlen($sql_debug);
+                echo 'console.log("SQL Query Length: ' . $sql_length . ' characters");';
+                if ($sql_length > 1500) {
+                    // Split into chunks to avoid browser console limits
+                    $chunks = str_split($sql_debug, 1500);
+                    echo 'console.log("SQL Query (full, split into ' . count($chunks) . ' parts):");';
+                    foreach ($chunks as $idx => $chunk) {
+                        echo 'console.log("Part ' . ($idx + 1) . '/' . count($chunks) . ': ' . esc_js($chunk) . '");';
+                    }
+                } else {
+                    echo 'console.log("SQL Query (full): ' . esc_js($sql_debug) . '");';
+                }
+            } else {
+                echo 'console.warn("⚠️ SQL query is empty - cannot debug!");';
+            }
+            echo 'console.log("===========================");';
+            echo '</script>';
+        }, 999);
+    }
+    
+    return $terms;
+}
+
+// Fix mixed content for site icon if SSL is on
+add_filter('get_site_icon_url', 'wtm_fix_site_icon_url');
+function wtm_fix_site_icon_url($url) {
+    if (is_ssl() && !empty($url) && strpos($url, 'http://') === 0) {
+        return set_url_scheme($url, 'https');
+    }
+    return $url;
 }
