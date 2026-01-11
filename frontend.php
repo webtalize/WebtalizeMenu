@@ -10,25 +10,24 @@ add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
 function wtm_display_menu($atts) {
     ob_start();
 
-    // Get categories sorted by their custom order (wtm_category_order)
+    // Get ALL categories (including those without sort order)
+    // Don't use meta_key/orderby in get_terms() as it excludes terms without that meta key
     $terms = get_terms(array(
         'taxonomy' => 'menu_category',
         'hide_empty' => false,
-        'meta_key' => 'wtm_category_order',
-        'orderby' => 'meta_value_num',
-        'order' => 'ASC',
     ));
     
-    // If some categories don't have order values, they'll be at the end
-    // Sort them properly: those with order values first, then by name
+    // Sort categories by their custom order (wtm_category_order)
+    // Categories without sort order (NULL or 0) will appear at the end
     if (!empty($terms) && !is_wp_error($terms)) {
         usort($terms, function($a, $b) {
             $order_a = get_term_meta($a->term_id, 'wtm_category_order', true);
             $order_b = get_term_meta($b->term_id, 'wtm_category_order', true);
             
-            // Convert to integers, defaulting to 999999 if empty/null
-            $order_a = ($order_a !== '' && $order_a !== null) ? intval($order_a) : 999999;
-            $order_b = ($order_b !== '' && $order_b !== null) ? intval($order_b) : 999999;
+            // Convert to integers, defaulting to 999999 if empty/null/0
+            // This ensures categories without sort order appear at the end
+            $order_a = ($order_a !== '' && $order_a !== null && $order_a !== false && $order_a !== '0') ? intval($order_a) : 999999;
+            $order_b = ($order_b !== '' && $order_b !== null && $order_b !== false && $order_b !== '0') ? intval($order_b) : 999999;
             
             if ($order_a !== $order_b) {
                 return $order_a - $order_b;
@@ -59,30 +58,47 @@ function wtm_display_menu($atts) {
             );
 
             $query = new WP_Query($args);
-
+            $items = array();
+            
+            // Collect all items
             if ($query->have_posts()) {
-                echo '<ul class="wtm-menu-items">';
                 while ($query->have_posts()) {
                     $query->the_post();
+                    $items[] = array(
+                        'ID' => get_the_ID(),
+                        'title' => get_the_title(),
+                        'price' => get_post_meta(get_the_ID(), 'wtm_price', true),
+                        'description' => get_post_meta(get_the_ID(), 'wtm_description', true),
+                    );
+                }
+                wp_reset_postdata();
+            }
+            
+            // Sort items by title with natural numeric sorting
+            // This ensures "7. Hot & Sour Soup" comes before "15. Cantonese Wor Wonton"
+            usort($items, function($a, $b) {
+                return strnatcmp($a['title'], $b['title']);
+            });
+
+            if (!empty($items)) {
+                echo '<ul class="wtm-menu-items">';
+                foreach ($items as $item) {
                     echo '<li class="wtm-menu-item">';
 
                     echo '<div class="wtm-item-header">'; // Container for name and price
-                    echo '<h3 class="wtm-item-name">' . esc_html(get_the_title()) . '</h3>'; 
-                    $price = get_post_meta(get_the_ID(), 'wtm_price', true);
-                    if ($price !== '') {
-                        echo '<span class="wtm-item-price">$' . esc_html($price) . '</span>';
+                    echo '<h3 class="wtm-item-name">' . esc_html($item['title']) . '</h3>'; 
+                    if ($item['price'] !== '') {
+                        echo '<span class="wtm-item-price">$' . esc_html($item['price']) . '</span>';
                     }
                     echo '</div>'; // Close header
 
-                    $description = get_post_meta(get_the_ID(), 'wtm_description', true);
-                    if ($description) {
-                        echo '<div class="wtm-item-description">' . wp_kses_post($description) . '</div>';
+                    if ($item['description']) {
+                        echo '<div class="wtm-item-description">' . wp_kses_post($item['description']) . '</div>';
                     }
 
                     echo '</li>';
                 }
                 echo '</ul>';
-                wp_reset_postdata();
             } else {
                 echo '<p class="wtm-no-items">' . esc_html__('No items found in this category.', 'webtalize-menu') . '</p>';
             }

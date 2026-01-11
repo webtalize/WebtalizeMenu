@@ -176,8 +176,8 @@ function wtm_menu_items_orderby_category_clauses($clauses, $query) {
         
         // Use a subquery to get the minimum category order for each post
         // This handles posts with multiple categories by using the category with the lowest order value
-        // IMPORTANT: We need to ensure numeric conversion happens correctly
-        // TRIM to remove whitespace, then CAST to SIGNED for proper numeric sorting
+        // IMPORTANT: The subquery only includes posts that have at least one category
+        // Posts without categories won't be in the subquery result (will be NULL after LEFT JOIN)
         $subquery = "
             SELECT tr.object_id, 
                    MIN(CAST(COALESCE(NULLIF(TRIM(tm.meta_value), ''), '999999') AS SIGNED)) AS category_order
@@ -191,23 +191,48 @@ function wtm_menu_items_orderby_category_clauses($clauses, $query) {
         $has_category_order_join = strpos($clauses['join'], 'wtm_category_order_meta') !== false;
         
         if (!$has_category_order_join) {
+            // LEFT JOIN ensures ALL posts are included, even those without categories
+            // Posts without categories will have NULL category_order
             $clauses['join'] .= " LEFT JOIN ({$subquery}) AS wtm_category_order_meta ON {$wpdb->posts}.ID = wtm_category_order_meta.object_id";
         }
         
+        // CRITICAL: Ensure posts without categories (NULL category_order) are not filtered out
+        // Check and remove any WHERE clauses that exclude NULL values
+        if (!empty($clauses['where'])) {
+            // Remove WHERE conditions that filter out NULL category_order
+            $clauses['where'] = preg_replace('/\s*AND\s*\(\s*wtm_category_order_meta\.category_order\s+IS\s+NOT\s+NULL\s*\)/i', '', $clauses['where']);
+            $clauses['where'] = preg_replace('/\s*AND\s*wtm_category_order_meta\.category_order\s+IS\s+NOT\s+NULL/i', '', $clauses['where']);
+        }
+        
         // Modify ORDER BY clause
-        // Sort by category order first (NULL/empty values go last), then by post title
-        // CRITICAL: Force numeric sorting using +0 trick (forces MySQL to treat as numeric)
-        // This ensures 7, 8, 9 come before 10, 11, 12, etc. (numeric sort, not string sort)
+        // Sort by category order first (NULL/0/999999 values go last), then by post title
+        // CRITICAL: Use LPAD to pad numbers with leading zeros for proper string-based numeric sorting
+        // This ensures: 07 < 08 < 09 < 10 < 11 < 15 (string comparison matches numeric)
+        // Without padding: "15" < "7" (incorrect string comparison)
         $clauses['orderby'] = "ORDER BY 
             CASE 
                 WHEN wtm_category_order_meta.category_order IS NULL 
-                     OR (wtm_category_order_meta.category_order + 0) = 0 
-                     OR (wtm_category_order_meta.category_order + 0) = 999999
+                     OR CAST(COALESCE(wtm_category_order_meta.category_order, 0) AS SIGNED) = 0 
+                     OR CAST(COALESCE(wtm_category_order_meta.category_order, 0) AS SIGNED) = 999999
                 THEN 1 
                 ELSE 0 
             END ASC,
-            (wtm_category_order_meta.category_order + 0) {$order},
+            LPAD(CAST(COALESCE(wtm_category_order_meta.category_order, 999999) AS SIGNED), 10, '0') {$order},
             {$wpdb->posts}.post_title {$order}";
+        
+        // Debug: Output SQL to console
+        static $debug_sql_output = false;
+        if (!$debug_sql_output) {
+            add_action('admin_footer', function() use ($clauses, $subquery) {
+                echo '<script type="text/javascript">';
+                echo 'console.log("=== WTM Menu Items Sorting Debug ===");';
+                echo 'console.log("Subquery: ' . esc_js($subquery) . '");';
+                echo 'console.log("ORDER BY: ' . esc_js($clauses['orderby']) . '");';
+                echo 'console.log("JOIN: ' . esc_js(substr($clauses['join'], -200)) . '");';
+                echo '</script>';
+            }, 999);
+            $debug_sql_output = true;
+        }
     }
     
     return $clauses;
