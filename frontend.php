@@ -1,7 +1,7 @@
 <?php
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
-    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.6');
+    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.8');
     
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
@@ -46,7 +46,9 @@ function wtm_display_menu($atts) {
             $image_id = get_term_meta($term->term_id, 'wtm_category_image_id', true);
             $image_url = '';
             if ($image_id) {
-                $image_url = wp_get_attachment_image_url($image_id, 'thumbnail');
+                // Use 'large' size for better quality (typically 1024px width)
+                // This ensures crisp images even on retina displays when scaled down to 210-270px
+                $image_url = wp_get_attachment_image_url($image_id, 'large');
                 if ($image_url && is_ssl()) {
                     $image_url = set_url_scheme($image_url, 'https');
                 }
