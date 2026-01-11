@@ -109,6 +109,110 @@ function wtm_sortable_columns( $columns ) {
     return $columns;
 }
 
+// Sort menu items by category order first, then by item name
+add_action('pre_get_posts', 'wtm_menu_items_sort_by_category_order');
+function wtm_menu_items_sort_by_category_order($query) {
+    // Only apply to menu_item post type in admin
+    if (!is_admin() || !$query->is_main_query()) {
+        return;
+    }
+    
+    // Check if we're on the menu items list page
+    $screen = get_current_screen();
+    if (!$screen || $screen->post_type !== 'menu_item' || $screen->id !== 'edit-menu_item') {
+        return;
+    }
+    
+    // Don't override if user is manually sorting by a column
+    if (isset($_GET['orderby']) && $_GET['orderby'] !== '' && $_GET['orderby'] !== 'wtm_category_order') {
+        // Allow manual sorting if user clicks on a sortable column (except our custom one)
+        return;
+    }
+    
+    // Set orderby to trigger our custom sorting
+    $query->set('orderby', 'wtm_category_order');
+    if (!$query->get('order')) {
+        $query->set('order', 'ASC');
+    }
+}
+
+// Modify SQL clauses to join with termmeta and sort by category order
+add_filter('posts_clauses', 'wtm_menu_items_orderby_category_clauses', 999, 2);
+function wtm_menu_items_orderby_category_clauses($clauses, $query) {
+    // Only apply to menu_item post type in admin
+    if (!is_admin() || !$query->is_main_query()) {
+        return $clauses;
+    }
+    
+    $screen = get_current_screen();
+    if (!$screen || $screen->post_type !== 'menu_item' || $screen->id !== 'edit-menu_item') {
+        return $clauses;
+    }
+    
+    // Check if we're using our custom orderby
+    $orderby = $query->get('orderby');
+    $manual_orderby = isset($_GET['orderby']) ? $_GET['orderby'] : '';
+    
+    // If user is manually sorting by a specific column (not our custom one), don't override
+    if (!empty($manual_orderby) && $manual_orderby !== 'wtm_category_order') {
+        return $clauses;
+    }
+    
+    // Apply our custom sort if orderby is 'wtm_category_order' (set by pre_get_posts) 
+    // OR if there's no manual orderby (default view)
+    if ($orderby === 'wtm_category_order' || empty($manual_orderby)) {
+        global $wpdb;
+        
+        // Get order direction
+        $order = 'ASC';
+        if ($query->get('order')) {
+            $order = strtoupper($query->get('order'));
+        } elseif (isset($_GET['order']) && !empty($_GET['order'])) {
+            $order = strtoupper(sanitize_text_field($_GET['order']));
+        }
+        if ($order !== 'ASC' && $order !== 'DESC') {
+            $order = 'ASC';
+        }
+        
+        // Use a subquery to get the minimum category order for each post
+        // This handles posts with multiple categories by using the category with the lowest order value
+        // IMPORTANT: We need to ensure numeric conversion happens correctly
+        // TRIM to remove whitespace, then CAST to SIGNED for proper numeric sorting
+        $subquery = "
+            SELECT tr.object_id, 
+                   MIN(CAST(COALESCE(NULLIF(TRIM(tm.meta_value), ''), '999999') AS SIGNED)) AS category_order
+            FROM {$wpdb->term_relationships} tr
+            INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id AND tt.taxonomy = 'menu_category'
+            LEFT JOIN {$wpdb->termmeta} tm ON tt.term_id = tm.term_id AND tm.meta_key = 'wtm_category_order'
+            GROUP BY tr.object_id
+        ";
+        
+        // Check if we already have the join
+        $has_category_order_join = strpos($clauses['join'], 'wtm_category_order_meta') !== false;
+        
+        if (!$has_category_order_join) {
+            $clauses['join'] .= " LEFT JOIN ({$subquery}) AS wtm_category_order_meta ON {$wpdb->posts}.ID = wtm_category_order_meta.object_id";
+        }
+        
+        // Modify ORDER BY clause
+        // Sort by category order first (NULL/empty values go last), then by post title
+        // CRITICAL: Force numeric sorting using +0 trick (forces MySQL to treat as numeric)
+        // This ensures 7, 8, 9 come before 10, 11, 12, etc. (numeric sort, not string sort)
+        $clauses['orderby'] = "ORDER BY 
+            CASE 
+                WHEN wtm_category_order_meta.category_order IS NULL 
+                     OR (wtm_category_order_meta.category_order + 0) = 0 
+                     OR (wtm_category_order_meta.category_order + 0) = 999999
+                THEN 1 
+                ELSE 0 
+            END ASC,
+            (wtm_category_order_meta.category_order + 0) {$order},
+            {$wpdb->posts}.post_title {$order}";
+    }
+    
+    return $clauses;
+}
+
 
 
 // Add fields to Quick Edit

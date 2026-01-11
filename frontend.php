@@ -10,10 +10,33 @@ add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
 function wtm_display_menu($atts) {
     ob_start();
 
+    // Get categories sorted by their custom order (wtm_category_order)
     $terms = get_terms(array(
         'taxonomy' => 'menu_category',
         'hide_empty' => false,
+        'meta_key' => 'wtm_category_order',
+        'orderby' => 'meta_value_num',
+        'order' => 'ASC',
     ));
+    
+    // If some categories don't have order values, they'll be at the end
+    // Sort them properly: those with order values first, then by name
+    if (!empty($terms) && !is_wp_error($terms)) {
+        usort($terms, function($a, $b) {
+            $order_a = get_term_meta($a->term_id, 'wtm_category_order', true);
+            $order_b = get_term_meta($b->term_id, 'wtm_category_order', true);
+            
+            // Convert to integers, defaulting to 999999 if empty/null
+            $order_a = ($order_a !== '' && $order_a !== null) ? intval($order_a) : 999999;
+            $order_b = ($order_b !== '' && $order_b !== null) ? intval($order_b) : 999999;
+            
+            if ($order_a !== $order_b) {
+                return $order_a - $order_b;
+            }
+            // If same order, sort by name
+            return strcmp($a->name, $b->name);
+        });
+    }
 
     if (!empty($terms) && !is_wp_error($terms)) {
         echo '<div class="wtm-menu-container">';
@@ -31,7 +54,7 @@ function wtm_display_menu($atts) {
                     ),
                 ),
                 'posts_per_page' => -1,
-                'orderby' => 'menu_order title',
+                'orderby' => 'title',
                 'order' => 'ASC',
             );
 
