@@ -1,7 +1,7 @@
 <?php
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
-    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.5');
+    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.6');
     
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
@@ -103,7 +103,13 @@ function wtm_display_menu($atts) {
             });
 
             if (!empty($items)) {
-                echo '<ul class="wtm-menu-items">';
+                // Check if 3-column layout is enabled
+                $three_column_enabled = get_option('wtm_three_column_layout', '0');
+                $items_class = 'wtm-menu-items';
+                if ($three_column_enabled === '1') {
+                    $items_class .= ' wtm-three-column';
+                }
+                echo '<ul class="' . esc_attr($items_class) . '">';
                 foreach ($items as $item) {
                     echo '<li class="wtm-menu-item">';
 

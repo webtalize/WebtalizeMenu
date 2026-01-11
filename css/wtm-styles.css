@@ -14,9 +14,16 @@
 
 /* Menu items styling */
 .wtm-menu-items{list-style:none;margin:0;padding:0}
+/* Default: single column layout */
 .wtm-menu-item{padding:1rem 0;border-bottom:1px solid #f0f0f0;transition:background-color 0.2s ease}
 .wtm-menu-item:hover{background-color:#fafafa;margin-left:-0.5rem;margin-right:-0.5rem;padding-left:0.5rem;padding-right:0.5rem;border-radius:6px}
 .wtm-menu-item:last-child{border-bottom:none}
+/* 3-column layout - only when enabled */
+.wtm-menu-items.wtm-three-column{display:grid;gap:1.5rem;grid-template-columns:1fr;list-style:none}
+@media (min-width:768px){.wtm-menu-items.wtm-three-column{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1024px){.wtm-menu-items.wtm-three-column{grid-template-columns:repeat(3,1fr)}}
+.wtm-menu-items.wtm-three-column .wtm-menu-item{border-bottom:none;padding:1rem;background-color:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);list-style:none}
+.wtm-menu-items.wtm-three-column .wtm-menu-item:hover{background-color:#fafafa;margin-left:0;margin-right:0;padding-left:1rem;padding-right:1rem;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
 .wtm-item-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem}
 .wtm-item-name{font-weight:600!important;margin:0!important;flex:1;min-width:200px;font-size:18px!important;color:#1a1a1a!important;line-height:1.4!important}
 .wtm-item-price{color:#d4a574!important;font-weight:700!important;margin-left:auto;white-space:nowrap;font-size:20px!important}

@@ -345,6 +345,7 @@ function wtm_add_top_level_menu() {
     add_submenu_page('wtm-main','CSV Import','CSV Import','edit_posts','wtm-csv-import','wtm_csv_import_page');
     add_submenu_page('wtm-main','Reorder Items','Reorder Items','edit_posts','wtm-reorder','wtm_reorder_page');
     add_submenu_page('wtm-main','Bulk Add Items','Bulk Add Items','edit_posts','wtm-bulk-add','wtm_bulk_add_page');
+    add_submenu_page('wtm-main','Settings','Settings','manage_options','wtm-settings','wtm_settings_page');
 }
 
 function wtm_main_page() {
@@ -356,6 +357,41 @@ function wtm_main_page() {
     echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=menu_item&page=wtm-csv-import')) . '">' . esc_html__('CSV Import', 'webtalize-menu') . '</a></li>';
     echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=menu_item&page=wtm-bulk-add')) . '">' . esc_html__('Bulk Add Items', 'webtalize-menu') . '</a></li>';
     echo '</ul>';
+    echo '</div>';
+}
+
+// Settings page for menu display options
+function wtm_settings_page() {
+    // Handle form submission
+    if (isset($_POST['wtm_save_settings']) && check_admin_referer('wtm_settings_nonce')) {
+        $three_column = isset($_POST['wtm_three_column']) ? '1' : '0';
+        update_option('wtm_three_column_layout', $three_column);
+        echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'webtalize-menu') . '</p></div>';
+    }
+    
+    // Get current setting
+    $three_column_enabled = get_option('wtm_three_column_layout', '0');
+    
+    echo '<div class="wrap">';
+    echo '<h1>' . esc_html__('Webtalize Menu Settings', 'webtalize-menu') . '</h1>';
+    echo '<form method="post" action="">';
+    wp_nonce_field('wtm_settings_nonce');
+    
+    echo '<table class="form-table">';
+    echo '<tr>';
+    echo '<th scope="row">' . esc_html__('Menu Display Layout', 'webtalize-menu') . '</th>';
+    echo '<td>';
+    echo '<label>';
+    echo '<input type="checkbox" name="wtm_three_column" value="1" ' . checked($three_column_enabled, '1', false) . ' />';
+    echo ' ' . esc_html__('Enable 3-column layout for menu items', 'webtalize-menu');
+    echo '</label>';
+    echo '<p class="description">' . esc_html__('When enabled, menu items will display in 3 columns on wide screens, 2 columns on tablets, and 1 column on mobile devices. When disabled, items will display in a single column.', 'webtalize-menu') . '</p>';
+    echo '</td>';
+    echo '</tr>';
+    echo '</table>';
+    
+    submit_button(esc_html__('Save Settings', 'webtalize-menu'), 'primary', 'wtm_save_settings');
+    echo '</form>';
     echo '</div>';
 }
 
