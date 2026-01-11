@@ -1,7 +1,7 @@
 <?php
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
-    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.4');
+    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.5');
     
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
