@@ -1,7 +1,7 @@
 <?php
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
-    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.3');
+    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.4');
     
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
@@ -41,7 +41,29 @@ function wtm_display_menu($atts) {
         echo '<div class="wtm-menu-container">';
         foreach ($terms as $term) {
             echo '<section class="wtm-category">';
-            echo '<h2>' . esc_html($term->name) . '</h2>'; 
+            
+            // Get category image if available
+            $image_id = get_term_meta($term->term_id, 'wtm_category_image_id', true);
+            $image_url = '';
+            if ($image_id) {
+                $image_url = wp_get_attachment_image_url($image_id, 'thumbnail');
+                if ($image_url && is_ssl()) {
+                    $image_url = set_url_scheme($image_url, 'https');
+                }
+            }
+            
+            // Category header with image and title grouped together
+            echo '<div class="wtm-category-header">';
+            
+            // Display category image if available
+            if ($image_url) {
+                echo '<div class="wtm-category-image">';
+                echo '<img src="' . esc_url($image_url) . '" alt="' . esc_attr($term->name) . '" />';
+                echo '</div>';
+            }
+            
+            echo '<h2>' . esc_html($term->name) . '</h2>';
+            echo '</div>'; // Close category-header 
 
             $args = array(
                 'post_type' => 'menu_item',
