@@ -39,8 +39,7 @@ function wtm_create_post_type() {
         'hierarchical'          => false,
         'public'                => true,
         'show_ui'               => true,
-        'show_in_menu'          => true, // This is key!
-        'menu_position'         => 25, // Set a specific menu position
+        'show_in_menu'          => false, // Hide from menu - we'll add it manually under "Webtalize Menu"
         'menu_icon' => 'dashicons-food', // Add an icon
         'show_in_admin_bar'     => true,
         'show_in_nav_menus'     => true,

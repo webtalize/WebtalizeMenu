@@ -340,6 +340,8 @@ function wtm_add_top_level_menu() {
     add_menu_page('Webtalize Menu','Webtalize Menu','manage_options','wtm-main','wtm_main_page','dashicons-food',25.5);
     // add quick links as submenus
     add_submenu_page('wtm-main','All Menu Items','All Menu Items','edit_posts','edit.php?post_type=menu_item');
+    // Add New Menu Item - use callback to redirect
+    add_submenu_page('wtm-main','Add New Menu Item','Add New Menu Item','edit_posts','wtm-add-new-menu-item','wtm_redirect_to_new_menu_item');
     // add Menu Categories link to manage taxonomy terms
     add_submenu_page('wtm-main','Menu Categories','Menu Categories','manage_options','edit-tags.php?taxonomy=menu_category&post_type=menu_item');
     add_submenu_page('wtm-main','CSV Import','CSV Import','edit_posts','wtm-csv-import','wtm_csv_import_page');
@@ -358,6 +360,12 @@ function wtm_main_page() {
     echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=menu_item&page=wtm-bulk-add')) . '">' . esc_html__('Bulk Add Items', 'webtalize-menu') . '</a></li>';
     echo '</ul>';
     echo '</div>';
+}
+
+// Redirect callback for "Add New Menu Item" submenu
+function wtm_redirect_to_new_menu_item() {
+    wp_redirect(admin_url('post-new.php?post_type=menu_item'));
+    exit;
 }
 
 // Settings page for menu display options
