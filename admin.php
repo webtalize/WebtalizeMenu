@@ -110,7 +110,8 @@ function wtm_sortable_columns( $columns ) {
 }
 
 // Sort menu items by category order first, then by item name
-add_action('pre_get_posts', 'wtm_menu_items_sort_by_category_order');
+// Use priority 20 to run after WordPress sets default query vars
+add_action('pre_get_posts', 'wtm_menu_items_sort_by_category_order', 20);
 function wtm_menu_items_sort_by_category_order($query) {
     // Only apply to menu_item post type in admin
     if (!is_admin() || !$query->is_main_query()) {
@@ -123,12 +124,18 @@ function wtm_menu_items_sort_by_category_order($query) {
         return;
     }
     
-    // Don't override if user is manually sorting by a column
-    if (isset($_GET['orderby']) && $_GET['orderby'] !== '' && $_GET['orderby'] !== 'wtm_category_order') {
+    // Get the orderby from URL parameter
+    $get_orderby = isset($_GET['orderby']) ? $_GET['orderby'] : '';
+    
+    // Don't override if user is manually sorting by a column (including date, title, etc.)
+    // Only apply custom sorting when there's no explicit orderby in the URL
+    if (!empty($get_orderby) && $get_orderby !== 'wtm_category_order') {
         // Allow manual sorting if user clicks on a sortable column (except our custom one)
         return;
     }
     
+    // When there's no explicit orderby in URL (default view), always apply custom sorting
+    // This ensures all items are shown, sorted by category order then name
     // Set orderby to trigger our custom sorting
     $query->set('orderby', 'wtm_category_order');
     if (!$query->get('order')) {
@@ -158,10 +165,17 @@ function wtm_menu_items_orderby_category_clauses($clauses, $query) {
         return $clauses;
     }
     
-    // Apply our custom sort if orderby is 'wtm_category_order' (set by pre_get_posts) 
-    // OR if there's no manual orderby (default view)
-    if ($orderby === 'wtm_category_order' || empty($manual_orderby)) {
+    // Apply our custom sort if orderby is 'wtm_category_order' (set by pre_get_posts)
+    // Only apply when explicitly set to avoid interfering with WordPress's default query on first load
+    // The pre_get_posts hook will set this when there's no manual orderby
+    if ($orderby === 'wtm_category_order') {
         global $wpdb;
+        
+        // Ensure the query is properly set up - check that post_type is set
+        $post_type = $query->get('post_type');
+        if (empty($post_type) || (is_array($post_type) && !in_array('menu_item', $post_type)) || (!is_array($post_type) && $post_type !== 'menu_item')) {
+            return $clauses;
+        }
         
         // Get order direction
         $order = 'ASC';
@@ -209,7 +223,8 @@ function wtm_menu_items_orderby_category_clauses($clauses, $query) {
         // CRITICAL: Use LPAD to pad numbers with leading zeros for proper string-based numeric sorting
         // This ensures: 07 < 08 < 09 < 10 < 11 < 15 (string comparison matches numeric)
         // Without padding: "15" < "7" (incorrect string comparison)
-        $clauses['orderby'] = "ORDER BY 
+        // IMPORTANT: WordPress adds "ORDER BY" automatically, so we only provide the ordering expressions
+        $clauses['orderby'] = "
             CASE 
                 WHEN wtm_category_order_meta.category_order IS NULL 
                      OR CAST(COALESCE(wtm_category_order_meta.category_order, 0) AS SIGNED) = 0 
@@ -220,15 +235,21 @@ function wtm_menu_items_orderby_category_clauses($clauses, $query) {
             LPAD(CAST(COALESCE(wtm_category_order_meta.category_order, 999999) AS SIGNED), 10, '0') {$order},
             {$wpdb->posts}.post_title {$order}";
         
-        // Debug: Output SQL to console
+        // Debug: Output SQL to console with full query details
         static $debug_sql_output = false;
         if (!$debug_sql_output) {
-            add_action('admin_footer', function() use ($clauses, $subquery) {
+            add_action('admin_footer', function() use ($clauses, $subquery, $query) {
                 echo '<script type="text/javascript">';
                 echo 'console.log("=== WTM Menu Items Sorting Debug ===");';
-                echo 'console.log("Subquery: ' . esc_js($subquery) . '");';
+                echo 'console.log("GET orderby: ' . (isset($_GET['orderby']) ? esc_js($_GET['orderby']) : 'not set') . '");';
+                echo 'console.log("Query orderby: ' . esc_js($query->get('orderby')) . '");';
+                echo 'console.log("Query post_type: ' . esc_js(is_array($query->get('post_type')) ? implode(', ', $query->get('post_type')) : $query->get('post_type')) . '");';
+                echo 'console.log("Query post_status: ' . esc_js(is_array($query->get('post_status')) ? implode(', ', $query->get('post_status')) : $query->get('post_status')) . '");';
+                echo 'console.log("Query posts_per_page: ' . esc_js($query->get('posts_per_page')) . '");';
+                echo 'console.log("WHERE clause: ' . esc_js(substr($clauses['where'], 0, 500)) . '");';
+                echo 'console.log("JOIN clause: ' . esc_js(substr($clauses['join'], -300)) . '");';
                 echo 'console.log("ORDER BY: ' . esc_js($clauses['orderby']) . '");';
-                echo 'console.log("JOIN: ' . esc_js(substr($clauses['join'], -200)) . '");';
+                echo 'console.log("Subquery: ' . esc_js($subquery) . '");';
                 echo '</script>';
             }, 999);
             $debug_sql_output = true;
