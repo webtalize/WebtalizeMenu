@@ -29,3 +29,28 @@
 .wtm-item-price{color:#d4a574!important;font-weight:700!important;margin-left:auto;white-space:nowrap;font-size:20px!important}
 .wtm-item-description{color:#666!important;margin-top:0.5rem!important;line-height:1.6!important;font-size:16px!important}
 .wtm-no-items,.wtm-no-categories{color:#999;font-style:italic;padding:1rem 0}
+
+/* Opening hours */
+.wtm-opening-hours{margin:1rem auto;max-width:680px}
+.wtm-opening-hours-table{width:100%;max-width:680px;margin:0 auto;border-collapse:collapse;border:0!important;background:transparent!important;box-shadow:none!important;font-size:1.5em;border-spacing:0!important}
+.wtm-opening-hours-table tr{border:0!important;background:transparent!important;box-shadow:none!important}
+.wtm-opening-hours-table th,.wtm-opening-hours-table td{padding:0.4rem 0.6rem;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important}
+.wtm-opening-hours-day{font-weight:600}
+.wtm-opening-hours-title{font-size:2.1em;line-height:1.15;margin:0 0 0.7rem;font-weight:700;letter-spacing:0.02em}
+.wtm-opening-hours-note{margin-top:1rem;color:inherit;font-size:1.365em;line-height:1.5}
+.wtm-opening-hours-special ul{margin:0.4rem 0 0.8rem 1.2rem}
+.wtm-opening-hours-list{list-style:none;margin:0;padding:0;font-size:1.53em;line-height:1.4}
+.wtm-opening-hours-list li{margin:0.2rem 0;display:flex;align-items:baseline;gap:0.75rem}
+.wtm-opening-hours-list .wtm-opening-hours-day{min-width:120px;display:inline-block}
+.wtm-opening-hours-status{display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding:0.8rem 1.2rem;border-radius:8px;background:#f8f9fa}
+.wtm-opening-hours-status.wtm-status-open{background:#e8f5e9;border-left:4px solid #4caf50}
+.wtm-opening-hours-status.wtm-status-closed{background:#ffebee;border-left:4px solid #f44336}
+.wtm-status-icon{font-size:2em;line-height:1;font-weight:700;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;flex-shrink:0}
+.wtm-status-open .wtm-status-icon{background:#4caf50;color:#fff;animation:pulse 2s ease-in-out infinite}
+.wtm-status-closed .wtm-status-icon{background:#f44336;color:#fff}
+.wtm-opening-hours-status.wtm-status-closing-soon{background:#fff3cd;border-left:4px solid #ff9800}
+.wtm-status-closing-soon .wtm-status-icon{background:#ff9800;color:#fff;animation:pulse 2s ease-in-out infinite}
+.wtm-opening-hours-status .wtm-opening-hours-title{margin:0;font-size:1.8em;flex:1}
+.wtm-opening-hours-phone{margin-top:1rem;font-size:1.3em;font-weight:600;color:inherit}
+.wtm-opening-hours-today{font-size:2em;line-height:1.4;margin:0.8rem 0}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.05);opacity:0.9}}

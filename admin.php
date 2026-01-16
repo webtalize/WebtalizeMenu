@@ -368,6 +368,7 @@ function wtm_add_top_level_menu() {
     add_submenu_page('wtm-main','CSV Import','CSV Import','edit_posts','wtm-csv-import','wtm_csv_import_page');
     add_submenu_page('wtm-main','Reorder Items','Reorder Items','edit_posts','wtm-reorder','wtm_reorder_page');
     add_submenu_page('wtm-main','Bulk Add Items','Bulk Add Items','edit_posts','wtm-bulk-add','wtm_bulk_add_page');
+    add_submenu_page('wtm-main','Opening Hours','Opening Hours','manage_options','wtm-opening-hours','wtm_opening_hours_page');
     add_submenu_page('wtm-main','Settings','Settings','manage_options','wtm-settings','wtm_settings_page');
 }
 
@@ -421,6 +422,326 @@ function wtm_settings_page() {
     
     submit_button(esc_html__('Save Settings', 'webtalize-menu'), 'primary', 'wtm_save_settings');
     echo '</form>';
+    echo '</div>';
+}
+
+// Opening Hours settings
+function wtm_get_default_opening_hours() {
+    return array(
+        'monday'    => array('closed' => false, 'open' => '09:00', 'close' => '21:00', 'break_start' => '', 'break_end' => ''),
+        'tuesday'   => array('closed' => false, 'open' => '09:00', 'close' => '21:00', 'break_start' => '', 'break_end' => ''),
+        'wednesday' => array('closed' => false, 'open' => '09:00', 'close' => '21:00', 'break_start' => '', 'break_end' => ''),
+        'thursday'  => array('closed' => false, 'open' => '09:00', 'close' => '21:00', 'break_start' => '', 'break_end' => ''),
+        'friday'    => array('closed' => false, 'open' => '09:00', 'close' => '22:00', 'break_start' => '', 'break_end' => ''),
+        'saturday'  => array('closed' => false, 'open' => '09:00', 'close' => '22:00', 'break_start' => '', 'break_end' => ''),
+        'sunday'    => array('closed' => false, 'open' => '09:00', 'close' => '20:00', 'break_start' => '', 'break_end' => ''),
+    );
+}
+
+function wtm_sanitize_time($value) {
+    $value = sanitize_text_field($value);
+    if ($value === '') {
+        return '';
+    }
+    // Accept HH:MM in 24-hour format
+    if (!preg_match('/^\d{2}:\d{2}$/', $value)) {
+        return '';
+    }
+    return $value;
+}
+
+function wtm_normalize_datetime($value) {
+    $value = sanitize_text_field($value);
+    if ($value === '') {
+        return '';
+    }
+    $value = str_replace('T', ' ', $value);
+    $dt = date_create_from_format('Y-m-d H:i', $value, wp_timezone());
+    if (!$dt) {
+        return '';
+    }
+    return $dt->format('Y-m-d H:i');
+}
+
+function wtm_cleanup_special_hours() {
+    $specials = get_option('wtm_special_hours', array());
+    if (empty($specials) || !is_array($specials)) {
+        return;
+    }
+    $now = current_time('timestamp');
+    $one_week = 7 * DAY_IN_SECONDS;
+    $filtered = array();
+    foreach ($specials as $special) {
+        $end = isset($special['end']) ? $special['end'] : '';
+        if ($end === '') {
+            // Keep entries without end date
+            $filtered[] = $special;
+            continue;
+        }
+        $end_dt = date_create_from_format('Y-m-d H:i', $end, wp_timezone());
+        if (!$end_dt) {
+            $filtered[] = $special;
+            continue;
+        }
+        $end_ts = $end_dt->getTimestamp();
+        if (($end_ts + $one_week) >= $now) {
+            $filtered[] = $special;
+        }
+    }
+    if (count($filtered) !== count($specials)) {
+        update_option('wtm_special_hours', $filtered);
+    }
+}
+add_action('init', 'wtm_cleanup_special_hours');
+
+function wtm_opening_hours_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    $days = array(
+        'monday'    => __('Monday', 'webtalize-menu'),
+        'tuesday'   => __('Tuesday', 'webtalize-menu'),
+        'wednesday' => __('Wednesday', 'webtalize-menu'),
+        'thursday'  => __('Thursday', 'webtalize-menu'),
+        'friday'    => __('Friday', 'webtalize-menu'),
+        'saturday'  => __('Saturday', 'webtalize-menu'),
+        'sunday'    => __('Sunday', 'webtalize-menu'),
+    );
+
+    if (isset($_POST['wtm_opening_hours_save']) && check_admin_referer('wtm_opening_hours_nonce')) {
+        $default_hours = wtm_get_default_opening_hours();
+        $posted_hours = isset($_POST['wtm_hours']) && is_array($_POST['wtm_hours']) ? $_POST['wtm_hours'] : array();
+        $clean_hours = array();
+
+        foreach ($days as $day_key => $label) {
+            $row = isset($posted_hours[$day_key]) ? $posted_hours[$day_key] : array();
+            $closed = !empty($row['closed']);
+            $open = wtm_sanitize_time(isset($row['open']) ? $row['open'] : '');
+            $close = wtm_sanitize_time(isset($row['close']) ? $row['close'] : '');
+            $break_start = wtm_sanitize_time(isset($row['break_start']) ? $row['break_start'] : '');
+            $break_end = wtm_sanitize_time(isset($row['break_end']) ? $row['break_end'] : '');
+
+            if ($closed) {
+                $open = '';
+                $close = '';
+                $break_start = '';
+                $break_end = '';
+            }
+
+            $clean_hours[$day_key] = array(
+                'closed' => $closed,
+                'open' => $open,
+                'close' => $close,
+                'break_start' => $break_start,
+                'break_end' => $break_end,
+            );
+
+            if (!isset($default_hours[$day_key])) {
+                $default_hours[$day_key] = $clean_hours[$day_key];
+            }
+        }
+
+        update_option('wtm_opening_hours', $clean_hours);
+
+        $note = isset($_POST['wtm_opening_hours_note']) ? sanitize_textarea_field($_POST['wtm_opening_hours_note']) : '';
+        update_option('wtm_opening_hours_note', $note);
+
+        $phone = isset($_POST['wtm_opening_hours_phone']) ? sanitize_text_field($_POST['wtm_opening_hours_phone']) : '';
+        update_option('wtm_opening_hours_phone', $phone);
+
+        // Special hours
+        $specials_in = isset($_POST['wtm_specials']) && is_array($_POST['wtm_specials']) ? $_POST['wtm_specials'] : array();
+        $specials_out = array();
+        foreach ($specials_in as $special) {
+            if (!empty($special['remove'])) {
+                continue;
+            }
+            $type = isset($special['type']) && $special['type'] === 'closed' ? 'closed' : 'open';
+            $label = sanitize_text_field(isset($special['label']) ? $special['label'] : '');
+            $start = wtm_normalize_datetime(isset($special['start']) ? $special['start'] : '');
+            $end = wtm_normalize_datetime(isset($special['end']) ? $special['end'] : '');
+            $open = wtm_sanitize_time(isset($special['open']) ? $special['open'] : '');
+            $close = wtm_sanitize_time(isset($special['close']) ? $special['close'] : '');
+            $break_start = wtm_sanitize_time(isset($special['break_start']) ? $special['break_start'] : '');
+            $break_end = wtm_sanitize_time(isset($special['break_end']) ? $special['break_end'] : '');
+
+            if ($start === '' || $end === '') {
+                continue;
+            }
+
+            if ($type === 'closed') {
+                $open = '';
+                $close = '';
+                $break_start = '';
+                $break_end = '';
+            }
+
+            $specials_out[] = array(
+                'id' => isset($special['id']) ? sanitize_text_field($special['id']) : uniqid('wtm_special_', true),
+                'type' => $type,
+                'label' => $label,
+                'start' => $start,
+                'end' => $end,
+                'open' => $open,
+                'close' => $close,
+                'break_start' => $break_start,
+                'break_end' => $break_end,
+            );
+        }
+
+        update_option('wtm_special_hours', $specials_out);
+        wtm_cleanup_special_hours();
+
+        echo '<div class="notice notice-success"><p>' . esc_html__('Opening hours saved.', 'webtalize-menu') . '</p></div>';
+    }
+
+    $hours = get_option('wtm_opening_hours', wtm_get_default_opening_hours());
+    $specials = get_option('wtm_special_hours', array());
+    $note = get_option('wtm_opening_hours_note', '');
+    $phone = get_option('wtm_opening_hours_phone', '');
+
+    echo '<div class="wrap">';
+    echo '<h1>' . esc_html__('Opening Hours', 'webtalize-menu') . '</h1>';
+    echo '<p>' . esc_html__('Use the shortcode [wtm_opening_hours] with attributes to control display. Examples:', 'webtalize-menu') . '</p>';
+    echo '<ul>';
+    echo '<li><code>[wtm_opening_hours]</code> - ' . esc_html__('Weekly table with specials.', 'webtalize-menu') . '</li>';
+    echo '<li><code>[wtm_opening_hours show="today"]</code> - ' . esc_html__('Today only.', 'webtalize-menu') . '</li>';
+    echo '<li><code>[wtm_opening_hours layout="compact"]</code> - ' . esc_html__('Weekly compact list.', 'webtalize-menu') . '</li>';
+    echo '<li><code>[wtm_opening_hours specials="no"]</code> - ' . esc_html__('Hide specials.', 'webtalize-menu') . '</li>';
+    echo '</ul>';
+    echo '<form method="post" action="">';
+    wp_nonce_field('wtm_opening_hours_nonce');
+
+    echo '<h2>' . esc_html__('Weekly Hours', 'webtalize-menu') . '</h2>';
+    echo '<table class="widefat fixed striped">';
+    echo '<thead><tr>';
+    echo '<th>' . esc_html__('Day', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Closed', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Open', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Close', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Break Start', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Break End', 'webtalize-menu') . '</th>';
+    echo '</tr></thead><tbody>';
+
+    foreach ($days as $day_key => $label) {
+        $row = isset($hours[$day_key]) ? $hours[$day_key] : array();
+        $closed = !empty($row['closed']);
+        $open = isset($row['open']) ? $row['open'] : '';
+        $close = isset($row['close']) ? $row['close'] : '';
+        $break_start = isset($row['break_start']) ? $row['break_start'] : '';
+        $break_end = isset($row['break_end']) ? $row['break_end'] : '';
+
+        echo '<tr>';
+        echo '<td>' . esc_html($label) . '</td>';
+        echo '<td><input type="checkbox" name="wtm_hours[' . esc_attr($day_key) . '][closed]" value="1" ' . checked($closed, true, false) . ' /></td>';
+        echo '<td><input type="time" name="wtm_hours[' . esc_attr($day_key) . '][open]" value="' . esc_attr($open) . '" /></td>';
+        echo '<td><input type="time" name="wtm_hours[' . esc_attr($day_key) . '][close]" value="' . esc_attr($close) . '" /></td>';
+        echo '<td><input type="time" name="wtm_hours[' . esc_attr($day_key) . '][break_start]" value="' . esc_attr($break_start) . '" /></td>';
+        echo '<td><input type="time" name="wtm_hours[' . esc_attr($day_key) . '][break_end]" value="' . esc_attr($break_end) . '" /></td>';
+        echo '</tr>';
+    }
+
+    echo '</tbody></table>';
+
+    echo '<h3 style="margin-top:20px;">' . esc_html__('Optional Note', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Displayed below the opening hours (e.g., "Holidays: Hours vary; open New Year\'s Day").', 'webtalize-menu') . '</p>';
+    echo '<textarea name="wtm_opening_hours_note" rows="3" style="width:100%;">' . esc_textarea($note) . '</textarea>';
+
+    echo '<h3 style="margin-top:20px;">' . esc_html__('Phone Number', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Displayed below today\'s hours when using [wtm_opening_hours show="today"].', 'webtalize-menu') . '</p>';
+    echo '<input type="text" name="wtm_opening_hours_phone" value="' . esc_attr($phone) . '" style="width:100%;max-width:400px;" placeholder="' . esc_attr__('(555) 123-4567', 'webtalize-menu') . '" />';
+
+    echo '<h2 style="margin-top:25px;">' . esc_html__('Special Hours / Closures', 'webtalize-menu') . '</h2>';
+    echo '<p>' . esc_html__('Use special hours for holidays, events, or temporary closures. Entries are removed one week after their end time.', 'webtalize-menu') . '</p>';
+
+    echo '<table class="widefat fixed striped" id="wtm-special-hours-table">';
+    echo '<thead><tr>';
+    echo '<th>' . esc_html__('Type', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Label', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Start', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('End', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Open', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Close', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Break Start', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Break End', 'webtalize-menu') . '</th>';
+    echo '<th>' . esc_html__('Remove', 'webtalize-menu') . '</th>';
+    echo '</tr></thead><tbody>';
+
+    if (!empty($specials)) {
+        foreach ($specials as $index => $special) {
+            $type = isset($special['type']) ? $special['type'] : 'open';
+            $label = isset($special['label']) ? $special['label'] : '';
+            $start = isset($special['start']) ? $special['start'] : '';
+            $end = isset($special['end']) ? $special['end'] : '';
+            $open = isset($special['open']) ? $special['open'] : '';
+            $close = isset($special['close']) ? $special['close'] : '';
+            $break_start = isset($special['break_start']) ? $special['break_start'] : '';
+            $break_end = isset($special['break_end']) ? $special['break_end'] : '';
+
+            $start_val = $start ? str_replace(' ', 'T', $start) : '';
+            $end_val = $end ? str_replace(' ', 'T', $end) : '';
+
+            echo '<tr class="wtm-special-row">';
+            echo '<td>';
+            echo '<select name="wtm_specials[' . esc_attr($index) . '][type]">';
+            echo '<option value="open"' . selected($type, 'open', false) . '>' . esc_html__('Special Open', 'webtalize-menu') . '</option>';
+            echo '<option value="closed"' . selected($type, 'closed', false) . '>' . esc_html__('Closed', 'webtalize-menu') . '</option>';
+            echo '</select>';
+            echo '</td>';
+            echo '<td><input type="text" name="wtm_specials[' . esc_attr($index) . '][label]" value="' . esc_attr($label) . '" placeholder="' . esc_attr__('Holiday / Event', 'webtalize-menu') . '" /></td>';
+            echo '<td><input type="datetime-local" name="wtm_specials[' . esc_attr($index) . '][start]" value="' . esc_attr($start_val) . '" /></td>';
+            echo '<td><input type="datetime-local" name="wtm_specials[' . esc_attr($index) . '][end]" value="' . esc_attr($end_val) . '" /></td>';
+            echo '<td><input type="time" name="wtm_specials[' . esc_attr($index) . '][open]" value="' . esc_attr($open) . '" /></td>';
+            echo '<td><input type="time" name="wtm_specials[' . esc_attr($index) . '][close]" value="' . esc_attr($close) . '" /></td>';
+            echo '<td><input type="time" name="wtm_specials[' . esc_attr($index) . '][break_start]" value="' . esc_attr($break_start) . '" /></td>';
+            echo '<td><input type="time" name="wtm_specials[' . esc_attr($index) . '][break_end]" value="' . esc_attr($break_end) . '" /></td>';
+            echo '<td><input type="checkbox" name="wtm_specials[' . esc_attr($index) . '][remove]" value="1" /></td>';
+            echo '<input type="hidden" name="wtm_specials[' . esc_attr($index) . '][id]" value="' . esc_attr(isset($special['id']) ? $special['id'] : '') . '" />';
+            echo '</tr>';
+        }
+    }
+
+    // Blank row template
+    echo '<tr class="wtm-special-row wtm-special-template" style="display:none;">';
+    echo '<td>';
+    echo '<select name="wtm_specials[__INDEX__][type]">';
+    echo '<option value="open">' . esc_html__('Special Open', 'webtalize-menu') . '</option>';
+    echo '<option value="closed">' . esc_html__('Closed', 'webtalize-menu') . '</option>';
+    echo '</select>';
+    echo '</td>';
+    echo '<td><input type="text" name="wtm_specials[__INDEX__][label]" placeholder="' . esc_attr__('Holiday / Event', 'webtalize-menu') . '" /></td>';
+    echo '<td><input type="datetime-local" name="wtm_specials[__INDEX__][start]" value="" /></td>';
+    echo '<td><input type="datetime-local" name="wtm_specials[__INDEX__][end]" value="" /></td>';
+    echo '<td><input type="time" name="wtm_specials[__INDEX__][open]" value="" /></td>';
+    echo '<td><input type="time" name="wtm_specials[__INDEX__][close]" value="" /></td>';
+    echo '<td><input type="time" name="wtm_specials[__INDEX__][break_start]" value="" /></td>';
+    echo '<td><input type="time" name="wtm_specials[__INDEX__][break_end]" value="" /></td>';
+    echo '<td><input type="checkbox" name="wtm_specials[__INDEX__][remove]" value="1" /></td>';
+    echo '<input type="hidden" name="wtm_specials[__INDEX__][id]" value="" />';
+    echo '</tr>';
+
+    echo '</tbody></table>';
+    echo '<p><button type="button" class="button" id="wtm-add-special-row">' . esc_html__('Add Special Entry', 'webtalize-menu') . '</button></p>';
+
+    submit_button(esc_html__('Save Opening Hours', 'webtalize-menu'), 'primary', 'wtm_opening_hours_save');
+    echo '</form>';
+
+    echo '<script type="text/javascript">';
+    echo '(function($){';
+    echo '$(document).ready(function(){';
+    echo 'var $table = $("#wtm-special-hours-table");';
+    echo 'var index = $table.find("tbody tr.wtm-special-row").not(".wtm-special-template").length;';
+    echo '$("#wtm-add-special-row").on("click", function(){';
+    echo 'var $tpl = $table.find(".wtm-special-template").clone();';
+    echo 'var html = $tpl.prop("outerHTML").replace(/__INDEX__/g, index);';
+    echo '$(html).removeClass("wtm-special-template").show().appendTo($table.find("tbody"));';
+    echo 'index++;';
+    echo '});';
+    echo '});';
+    echo '})(jQuery);';
+    echo '</script>';
+
     echo '</div>';
 }
 
