@@ -54,3 +54,30 @@
 .wtm-opening-hours-phone{margin-top:1rem;font-size:1.3em;font-weight:600;color:inherit}
 .wtm-opening-hours-today{font-size:2em;line-height:1.4;margin:0.8rem 0}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.05);opacity:0.9}}
+
+/* Dietary & Allergen Filtering */
+.wtm-dietary-filters{margin:2rem 0;padding:1.5rem;background:#f8f9fa;border-radius:8px;max-width:1200px;margin-left:auto;margin-right:auto}
+.wtm-filters-title{margin:0 0 1rem 0!important;font-size:1.5em!important;font-weight:600!important;color:#2c2c2c!important}
+.wtm-filter-buttons{display:flex;flex-wrap:wrap;gap:0.75rem}
+.wtm-filter-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1rem;background:#fff;border:2px solid #e0e0e0;border-radius:6px;cursor:pointer;transition:all 0.2s ease;font-size:0.95em;font-weight:500;color:#333}
+.wtm-filter-btn:hover{background:#f0f0f0;border-color:#d0d0d0;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+.wtm-filter-btn.active{background:#4caf50;border-color:#4caf50;color:#fff}
+.wtm-filter-btn.active:hover{background:#45a049;border-color:#45a049}
+.wtm-filter-btn.wtm-filter-clear{background:#6c757d;border-color:#6c757d;color:#fff}
+.wtm-filter-btn.wtm-filter-clear:hover{background:#5a6268;border-color:#5a6268}
+.wtm-filter-icon{font-size:1.2em;line-height:1}
+.wtm-filter-label{white-space:nowrap}
+
+/* Dietary labels on menu items */
+.wtm-item-dietary-labels{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;margin-bottom:0.5rem}
+.wtm-dietary-badge{display:inline-flex;align-items:center;gap:0.35rem;padding:0.35rem 0.7rem;background:#f0f7f0;border:1px solid #c8e6c9;border-radius:4px;font-size:0.85em;font-weight:500;color:#2e7d32;transition:all 0.2s ease}
+.wtm-dietary-badge:hover{background:#e8f5e9;border-color:#a5d6a7;transform:translateY(-1px)}
+.wtm-dietary-icon{font-size:1.1em;line-height:1}
+.wtm-dietary-text{white-space:nowrap}
+.wtm-dietary-vegan .wtm-dietary-badge{background:#e8f5e9;border-color:#81c784;color:#1b5e20}
+.wtm-dietary-gluten-free .wtm-dietary-badge{background:#fff3e0;border-color:#ffb74d;color:#e65100}
+.wtm-dietary-vegetarian .wtm-dietary-badge{background:#e8f5e9;border-color:#81c784;color:#1b5e20}
+.wtm-dietary-spicy-1 .wtm-dietary-badge,.wtm-dietary-spicy-2 .wtm-dietary-badge,.wtm-dietary-spicy-3 .wtm-dietary-badge{background:#ffebee;border-color:#ef5350;color:#b71c1c}
+.wtm-dietary-can-vegetarian .wtm-dietary-badge,.wtm-dietary-can-gluten-free .wtm-dietary-badge{background:#fff9c4;border-color:#fdd835;color:#f57f17}
+.wtm-dietary-peanuts .wtm-dietary-badge{background:#fff3e0;border-color:#ffb74d;color:#e65100}
+.wtm-no-filtered-items{text-align:center;padding:2rem;color:#999;font-style:italic;font-size:1.1em}

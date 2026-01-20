@@ -12,3 +12,16 @@
 .wtm-mapping{margin:12px 0}
 .wtm-map-row{display:flex;gap:12px}
 .wtm-map-col{min-width:120px}
+
+/* Dietary Labels Meta Box */
+.wtm-dietary-labels-wrapper{margin:10px 0}
+.wtm-dietary-popular{margin-bottom:15px}
+.wtm-dietary-popular h4{margin:0 0 10px 0;font-size:14px;font-weight:600}
+.wtm-dietary-checkboxes label{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f9f9f9;border:1px solid #ddd;border-radius:4px;cursor:pointer;transition:all 0.2s ease;margin:0}
+.wtm-dietary-checkboxes label:hover{background:#f0f0f0;border-color:#bbb}
+.wtm-dietary-checkboxes input[type="checkbox"]{margin:0;cursor:pointer}
+.wtm-dietary-checkboxes input[type="checkbox"]:checked + span{font-weight:600;color:#0073aa}
+.wtm-dietary-other details summary{padding:8px 12px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;cursor:pointer;user-select:none}
+.wtm-dietary-other details summary:hover{background:#ebebeb}
+.wtm-dietary-other details[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:none}
+.wtm-dietary-other details .wtm-dietary-checkboxes{padding:10px;background:#fafafa;border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px}

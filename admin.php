@@ -11,6 +11,11 @@ function wtm_add_description_meta_boxes() {
 }
 add_action('add_meta_boxes', 'wtm_add_description_meta_boxes');
 
+function wtm_add_dietary_labels_meta_boxes() {
+    add_meta_box('wtm_dietary_labels_meta_box', __('Dietary & Allergen Labels', 'webtalize-menu'), 'wtm_dietary_labels_meta_box_callback', 'menu_item', 'normal', 'default');
+}
+add_action('add_meta_boxes', 'wtm_add_dietary_labels_meta_boxes');
+
 function wtm_price_meta_box_callback($post) {
     wp_nonce_field('wtm_meta_box_nonce', 'wtm_meta_box_nonce');
     $price = get_post_meta($post->ID, 'wtm_price', true);
@@ -22,6 +27,67 @@ function wtm_description_meta_box_callback($post) {
     $description = get_post_meta($post->ID, 'wtm_description', true);
     echo '<label for="wtm_description">' . esc_html__('Description:', 'webtalize-menu') . '</label>';
     echo '<textarea id="wtm_description" name="wtm_description" rows="4" cols="50">' . esc_textarea($description) . '</textarea>'; // Use esc_textarea
+}
+
+function wtm_dietary_labels_meta_box_callback($post) {
+    $dietary_labels = get_post_meta($post->ID, 'wtm_dietary_labels', true);
+    if (!is_array($dietary_labels)) {
+        $dietary_labels = array();
+    }
+    
+    // Define all dietary options
+    $all_options = array(
+        'vegan' => 'Vegan',
+        'gluten_free' => 'Gluten Free',
+        'vegetarian' => 'Vegetarian',
+        'spicy_1' => 'Spicy',
+        'spicy_2' => 'Very Spicy',
+        'spicy_3' => 'Very Very Spicy',
+        'can_be_vegetarian' => 'Can be made Vegetarian',
+        'can_be_gluten_free' => 'Can be made Gluten free',
+        'contains_peanuts' => 'Contains peanuts',
+    );
+    
+    // Popular options (quick access)
+    $popular_options = array('vegan', 'gluten_free', 'spicy_1');
+    
+    // Other options (in sub-menu)
+    $other_options = array_diff_key($all_options, array_flip($popular_options));
+    
+    echo '<div class="wtm-dietary-labels-wrapper">';
+    
+    // Popular options section
+    echo '<div class="wtm-dietary-popular">';
+    echo '<h4 style="margin-top:0;">' . esc_html__('Popular Options', 'webtalize-menu') . '</h4>';
+    echo '<div class="wtm-dietary-checkboxes" style="display:flex;flex-wrap:wrap;gap:15px;margin-bottom:15px;">';
+    foreach ($popular_options as $key) {
+        $checked = in_array($key, $dietary_labels) ? 'checked="checked"' : '';
+        $label = $all_options[$key];
+        echo '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;">';
+        echo '<input type="checkbox" name="wtm_dietary_labels[]" value="' . esc_attr($key) . '" ' . $checked . ' />';
+        echo '<span>' . esc_html($label) . '</span>';
+        echo '</label>';
+    }
+    echo '</div>';
+    echo '</div>';
+    
+    // Other options section (collapsible)
+    echo '<div class="wtm-dietary-other">';
+    echo '<details style="margin-top:10px;">';
+    echo '<summary style="cursor:pointer;font-weight:600;padding:8px;background:#f5f5f5;border-radius:4px;">' . esc_html__('More Options', 'webtalize-menu') . '</summary>';
+    echo '<div class="wtm-dietary-checkboxes" style="display:flex;flex-wrap:wrap;gap:15px;margin-top:15px;padding:10px;">';
+    foreach ($other_options as $key => $label) {
+        $checked = in_array($key, $dietary_labels) ? 'checked="checked"' : '';
+        echo '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;">';
+        echo '<input type="checkbox" name="wtm_dietary_labels[]" value="' . esc_attr($key) . '" ' . $checked . ' />';
+        echo '<span>' . esc_html($label) . '</span>';
+        echo '</label>';
+    }
+    echo '</div>';
+    echo '</details>';
+    echo '</div>';
+    
+    echo '</div>';
 }
 
 
@@ -61,6 +127,24 @@ function wtm_save_meta_boxes_data($post_id) {
             delete_post_meta($post_id, 'wtm_description');
         }
     }
+
+    // Save dietary labels
+    if (isset($_POST['wtm_dietary_labels']) && is_array($_POST['wtm_dietary_labels'])) {
+        $dietary_labels = array_map('sanitize_text_field', $_POST['wtm_dietary_labels']);
+        // Validate against allowed options
+        $allowed_options = array('vegan', 'gluten_free', 'vegetarian', 'spicy_1', 'spicy_2', 'spicy_3', 'can_be_vegetarian', 'can_be_gluten_free', 'contains_peanuts');
+        $dietary_labels = array_intersect($dietary_labels, $allowed_options);
+        $dietary_labels = array_values($dietary_labels); // Re-index array
+        
+        if (!empty($dietary_labels)) {
+            update_post_meta($post_id, 'wtm_dietary_labels', $dietary_labels);
+        } else {
+            delete_post_meta($post_id, 'wtm_dietary_labels');
+        }
+    } else {
+        // If no labels are checked, remove the meta
+        delete_post_meta($post_id, 'wtm_dietary_labels');
+    }
 }
 add_action('save_post', 'wtm_save_meta_boxes_data');
 
@@ -72,6 +156,7 @@ function wtm_add_columns_to_menu_items_table($columns) {
         if ($key == 'date') { // Insert new columns before date
             $new_columns['wtm_price'] = __('Price', 'webtalize-menu');
             $new_columns['wtm_description'] = __('Description', 'webtalize-menu');
+            $new_columns['wtm_dietary_labels'] = __('Dietary Labels', 'webtalize-menu');
             $new_columns['menu_order'] = __('Order', 'webtalize-menu');
         }
         $new_columns[$key] = $title;
@@ -95,6 +180,36 @@ function wtm_display_custom_columns($column, $post_id) {
                 echo esc_html($description);
             }
             break;
+        case 'wtm_dietary_labels':
+            $dietary_labels = get_post_meta($post_id, 'wtm_dietary_labels', true);
+            if (!empty($dietary_labels) && is_array($dietary_labels)) {
+                $label_names = array(
+                    'vegan' => 'Vegan',
+                    'gluten_free' => 'GF',
+                    'vegetarian' => 'Veg',
+                    'spicy_1' => '🌶️1',
+                    'spicy_2' => '🌶️2',
+                    'spicy_3' => '🌶️3',
+                    'can_be_vegetarian' => 'Can Veg',
+                    'can_be_gluten_free' => 'Can GF',
+                    'contains_peanuts' => '🥜',
+                );
+                $display_labels = array();
+                foreach ($dietary_labels as $label_key) {
+                    if (isset($label_names[$label_key])) {
+                        $display_labels[] = $label_names[$label_key];
+                    }
+                }
+                if (!empty($display_labels)) {
+                    // Add hidden data attribute for quick edit JavaScript
+                    echo '<span class="wtm-dietary-labels-data" data-labels="' . esc_attr(json_encode($dietary_labels)) . '" style="display:none;"></span>';
+                    echo '<span style="font-size:0.9em;">' . esc_html(implode(', ', $display_labels)) . '</span>';
+                }
+            } else {
+                // Even if empty, add the data attribute so JavaScript knows it's empty
+                echo '<span class="wtm-dietary-labels-data" data-labels="[]" style="display:none;"></span>';
+            }
+            break;
         case 'menu_order':
             $p = get_post($post_id);
             echo $p->menu_order;
@@ -107,6 +222,77 @@ add_filter( 'manage_edit-menu_item_sortable_columns', 'wtm_sortable_columns' );
 function wtm_sortable_columns( $columns ) {
     $columns['menu_order'] = 'menu_order';
     return $columns;
+}
+
+// Add category filter dropdown to admin list
+add_action('restrict_manage_posts', 'wtm_add_category_filter');
+function wtm_add_category_filter() {
+    global $typenow;
+    
+    // Only show on menu_item post type
+    if ($typenow != 'menu_item') {
+        return;
+    }
+    
+    // Get selected category from URL
+    $selected = isset($_GET['menu_category_filter']) ? $_GET['menu_category_filter'] : '';
+    
+    // Get all menu categories
+    $categories = get_terms(array(
+        'taxonomy' => 'menu_category',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ));
+    
+    if (!empty($categories) && !is_wp_error($categories)) {
+        echo '<select name="menu_category_filter" id="menu_category_filter">';
+        echo '<option value="">' . esc_html__('All Categories', 'webtalize-menu') . '</option>';
+        
+        foreach ($categories as $category) {
+            $selected_attr = ($selected == $category->slug) ? ' selected="selected"' : '';
+            echo '<option value="' . esc_attr($category->slug) . '"' . $selected_attr . '>';
+            echo esc_html($category->name);
+            // Show count in parentheses
+            $count = $category->count;
+            if ($count > 0) {
+                echo ' (' . $count . ')';
+            }
+            echo '</option>';
+        }
+        
+        echo '</select>';
+    }
+}
+
+// Filter posts by category when category filter is selected
+add_action('parse_query', 'wtm_filter_posts_by_category');
+function wtm_filter_posts_by_category($query) {
+    global $pagenow, $typenow;
+    
+    // Only apply on admin list page for menu_item post type
+    if (!is_admin() || $pagenow != 'edit.php' || $typenow != 'menu_item') {
+        return;
+    }
+    
+    // Check if category filter is set
+    if (isset($_GET['menu_category_filter']) && $_GET['menu_category_filter'] != '') {
+        $category_slug = sanitize_text_field($_GET['menu_category_filter']);
+        
+        // Get the term ID from slug
+        $term = get_term_by('slug', $category_slug, 'menu_category');
+        
+        if ($term && !is_wp_error($term)) {
+            // Set tax query to filter by category
+            $query->set('tax_query', array(
+                array(
+                    'taxonomy' => 'menu_category',
+                    'field' => 'term_id',
+                    'terms' => $term->term_id,
+                ),
+            ));
+        }
+    }
 }
 
 // Sort menu items by category order first, then by item name
@@ -295,6 +481,57 @@ function wtm_add_quick_edit_fields($column_name, $post_type) {
             </fieldset>
             <?php
             break;
+        case 'wtm_dietary_labels':
+            // Define all dietary options
+            $all_options = array(
+                'vegan' => 'Vegan',
+                'gluten_free' => 'Gluten Free',
+                'vegetarian' => 'Vegetarian',
+                'spicy_1' => 'Spicy',
+                'spicy_2' => 'Very Spicy',
+                'spicy_3' => 'Very Very Spicy',
+                'can_be_vegetarian' => 'Can be made Vegetarian',
+                'can_be_gluten_free' => 'Can be made Gluten free',
+                'contains_peanuts' => 'Contains peanuts',
+            );
+            
+            // Popular options
+            $popular_options = array('vegan', 'gluten_free', 'spicy_1');
+            $other_options = array_diff_key($all_options, array_flip($popular_options));
+            ?>
+            <fieldset class="inline-edit-col-right wtm-dietary-quick-edit">
+                <div class="inline-edit-col">
+                    <span class="title"><?php _e('Dietary Labels', 'webtalize-menu'); ?></span>
+                    <!-- Hidden field to track that this field was in the form -->
+                    <input type="hidden" name="wtm_dietary_labels_present" value="1" />
+                    <div class="wtm-quick-edit-dietary-wrapper" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;padding:8px;background:#f9f9f9;border-radius:4px;">
+                        <div style="margin-bottom:8px;">
+                            <strong style="font-size:11px;color:#666;"><?php _e('Popular:', 'webtalize-menu'); ?></strong>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+                                <?php foreach ($popular_options as $key): ?>
+                                    <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" name="wtm_dietary_labels[]" value="<?php echo esc_attr($key); ?>" class="wtm_dietary_labels_input" data-label="<?php echo esc_attr($key); ?>" />
+                                        <span><?php echo esc_html($all_options[$key]); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <details style="margin-top:8px;">
+                            <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;"><?php _e('More Options', 'webtalize-menu'); ?></summary>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;padding-top:4px;border-top:1px solid #ddd;">
+                                <?php foreach ($other_options as $key => $label): ?>
+                                    <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" name="wtm_dietary_labels[]" value="<?php echo esc_attr($key); ?>" class="wtm_dietary_labels_input" data-label="<?php echo esc_attr($key); ?>" />
+                                        <span><?php echo esc_html($label); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </fieldset>
+            <?php
+            break;
     }
 } 
 
@@ -331,6 +568,35 @@ function wtm_save_quick_edit_data($post_id) {
             delete_post_meta($post_id, 'wtm_description');
         }
     }
+
+    // Save dietary labels from quick edit
+    // Check if we're in quick edit mode by looking for the inline-save action
+    $is_quick_edit = isset($_POST['action']) && $_POST['action'] === 'inline-save';
+    
+    if ($is_quick_edit && isset($_POST['wtm_dietary_labels_present'])) {
+        // The dietary labels field was in the quick edit form
+        // If checkboxes are unchecked, they won't be in POST, so we need to check if any were sent
+        if (isset($_POST['wtm_dietary_labels']) && is_array($_POST['wtm_dietary_labels'])) {
+            $dietary_labels = $_POST['wtm_dietary_labels'];
+        } else {
+            // No checkboxes were checked, so set to empty array
+            $dietary_labels = array();
+        }
+        
+        // Validate against allowed options
+        $allowed_options = array('vegan', 'gluten_free', 'vegetarian', 'spicy_1', 'spicy_2', 'spicy_3', 'can_be_vegetarian', 'can_be_gluten_free', 'contains_peanuts');
+        $dietary_labels = array_map('sanitize_text_field', $dietary_labels);
+        $dietary_labels = array_intersect($dietary_labels, $allowed_options);
+        $dietary_labels = array_values($dietary_labels); // Re-index array
+        
+        if (!empty($dietary_labels)) {
+            update_post_meta($post_id, 'wtm_dietary_labels', $dietary_labels);
+        } else {
+            // All checkboxes were unchecked, so clear the meta
+            delete_post_meta($post_id, 'wtm_dietary_labels');
+        }
+    }
+    // If wtm_dietary_labels_present is not in POST, the field wasn't in the form, so don't change existing value
 }
 
 

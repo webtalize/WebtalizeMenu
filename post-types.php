@@ -102,5 +102,11 @@ function wtm_register_meta_fields() {
         'single' => true,
         'show_in_rest' => true,
     ));
+    register_post_meta('menu_item', 'wtm_dietary_labels', array(
+        'type' => 'array',
+        'description' => 'Dietary and allergen labels for the menu item',
+        'single' => true,
+        'show_in_rest' => true,
+    ));
 }
 add_action('init', 'wtm_register_meta_fields');

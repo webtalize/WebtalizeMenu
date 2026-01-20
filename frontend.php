@@ -1,8 +1,8 @@
 <?php
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
-    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.8');
-    
+    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.9');
+    wp_enqueue_script('wtm-dietary-filter', WTM_PLUGIN_URL . 'js/wtm-dietary-filter.js', array(), '1.0.0', true);
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
 
@@ -354,6 +354,22 @@ function wtm_print_opening_hours($show_today_only = false) {
     echo wtm_render_opening_hours($show_today_only);
 }
 
+// Helper function to get dietary label display info
+function wtm_get_dietary_label_info($key) {
+    $labels = array(
+        'vegan' => array('label' => 'Vegan', 'icon' => '🌱', 'class' => 'wtm-dietary-vegan'),
+        'gluten_free' => array('label' => 'Gluten Free', 'icon' => '🌾', 'class' => 'wtm-dietary-gluten-free'),
+        'vegetarian' => array('label' => 'Vegetarian', 'icon' => '🥬', 'class' => 'wtm-dietary-vegetarian'),
+        'spicy_1' => array('label' => 'Spicy', 'icon' => '🌶️', 'class' => 'wtm-dietary-spicy-1'),
+        'spicy_2' => array('label' => 'Very Spicy', 'icon' => '🌶️🌶️', 'class' => 'wtm-dietary-spicy-2'),
+        'spicy_3' => array('label' => 'Very Very Spicy', 'icon' => '🌶️🌶️🌶️', 'class' => 'wtm-dietary-spicy-3'),
+        'can_be_vegetarian' => array('label' => 'Can be made Vegetarian', 'icon' => '🥬', 'class' => 'wtm-dietary-can-vegetarian'),
+        'can_be_gluten_free' => array('label' => 'Can be made Gluten free', 'icon' => '🌾', 'class' => 'wtm-dietary-can-gluten-free'),
+        'contains_peanuts' => array('label' => 'Contains peanuts', 'icon' => '🥜', 'class' => 'wtm-dietary-peanuts'),
+    );
+    return isset($labels[$key]) ? $labels[$key] : null;
+}
+
 //Shortcode to display the menu (modified to include price and description)
 function wtm_display_menu($atts) {
     ob_start();
@@ -386,6 +402,61 @@ function wtm_display_menu($atts) {
     }
 
     if (!empty($terms) && !is_wp_error($terms)) {
+        // First, query all menu items to find which dietary labels are actually in use
+        $all_menu_items = get_posts(array(
+            'post_type' => 'menu_item',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+        ));
+        
+        // Collect all dietary labels that are in use
+        $labels_in_use = array();
+        foreach ($all_menu_items as $item) {
+            $dietary_labels = get_post_meta($item->ID, 'wtm_dietary_labels', true);
+            if (!empty($dietary_labels) && is_array($dietary_labels)) {
+                foreach ($dietary_labels as $label_key) {
+                    $labels_in_use[$label_key] = true;
+                }
+            }
+        }
+        
+        // Add filter UI before menu container
+        echo '<div class="wtm-dietary-filters">';
+        echo '<h3 class="wtm-filters-title">' . esc_html__('Filter by Dietary & Allergen', 'webtalize-menu') . '</h3>';
+        echo '<div class="wtm-filter-buttons">';
+        
+        $all_dietary_options = array(
+            'vegan' => 'Vegan',
+            'gluten_free' => 'Gluten Free',
+            'vegetarian' => 'Vegetarian',
+            'spicy_1' => 'Spicy',
+            'spicy_2' => 'Very Spicy',
+            'spicy_3' => 'Very Very Spicy',
+            'can_be_vegetarian' => 'Can be made Vegetarian',
+            'can_be_gluten_free' => 'Can be made Gluten free',
+            'contains_peanuts' => 'Contains peanuts',
+        );
+        
+        // Only display filter buttons for labels that are actually in use
+        foreach ($all_dietary_options as $key => $label) {
+            // Only show if this label is in use
+            if (isset($labels_in_use[$key])) {
+                $info = wtm_get_dietary_label_info($key);
+                $icon = $info ? $info['icon'] : '';
+                echo '<button type="button" class="wtm-filter-btn" data-filter="' . esc_attr($key) . '" title="' . esc_attr($label) . '">';
+                echo '<span class="wtm-filter-icon">' . esc_html($icon) . '</span>';
+                echo '<span class="wtm-filter-label">' . esc_html($label) . '</span>';
+                echo '</button>';
+            }
+        }
+        
+        // Only show "Show All" button if there are any filters displayed
+        if (!empty($labels_in_use)) {
+            echo '<button type="button" class="wtm-filter-btn wtm-filter-clear" data-filter="all">' . esc_html__('Show All', 'webtalize-menu') . '</button>';
+        }
+        echo '</div>';
+        echo '</div>';
+        
         echo '<div class="wtm-menu-container">';
         foreach ($terms as $term) {
             echo '<section class="wtm-category">';
@@ -436,11 +507,16 @@ function wtm_display_menu($atts) {
             if ($query->have_posts()) {
                 while ($query->have_posts()) {
                     $query->the_post();
+                    $dietary_labels = get_post_meta(get_the_ID(), 'wtm_dietary_labels', true);
+                    if (!is_array($dietary_labels)) {
+                        $dietary_labels = array();
+                    }
                     $items[] = array(
                         'ID' => get_the_ID(),
                         'title' => get_the_title(),
                         'price' => get_post_meta(get_the_ID(), 'wtm_price', true),
                         'description' => get_post_meta(get_the_ID(), 'wtm_description', true),
+                        'dietary_labels' => $dietary_labels,
                     );
                 }
                 wp_reset_postdata();
@@ -461,7 +537,14 @@ function wtm_display_menu($atts) {
                 }
                 echo '<ul class="' . esc_attr($items_class) . '">';
                 foreach ($items as $item) {
-                    echo '<li class="wtm-menu-item">';
+                    // Build data attributes for filtering
+                    $dietary_data = !empty($item['dietary_labels']) ? implode(' ', array_map('esc_attr', $item['dietary_labels'])) : '';
+                    $dietary_class = !empty($item['dietary_labels']) ? ' ' . implode(' ', array_map(function($label) {
+                        $info = wtm_get_dietary_label_info($label);
+                        return $info ? $info['class'] : '';
+                    }, $item['dietary_labels'])) : '';
+                    
+                    echo '<li class="wtm-menu-item' . esc_attr($dietary_class) . '" data-dietary="' . esc_attr($dietary_data) . '">';
 
                     echo '<div class="wtm-item-header">'; // Container for name and price
                     echo '<h3 class="wtm-item-name">' . esc_html($item['title']) . '</h3>'; 
@@ -469,6 +552,21 @@ function wtm_display_menu($atts) {
                         echo '<span class="wtm-item-price">$' . esc_html($item['price']) . '</span>';
                     }
                     echo '</div>'; // Close header
+
+                    // Display dietary labels/icons
+                    if (!empty($item['dietary_labels'])) {
+                        echo '<div class="wtm-item-dietary-labels">';
+                        foreach ($item['dietary_labels'] as $label_key) {
+                            $info = wtm_get_dietary_label_info($label_key);
+                            if ($info) {
+                                echo '<span class="wtm-dietary-badge ' . esc_attr($info['class']) . '" title="' . esc_attr($info['label']) . '">';
+                                echo '<span class="wtm-dietary-icon">' . esc_html($info['icon']) . '</span>';
+                                echo '<span class="wtm-dietary-text">' . esc_html($info['label']) . '</span>';
+                                echo '</span>';
+                            }
+                        }
+                        echo '</div>';
+                    }
 
                     if ($item['description']) {
                         echo '<div class="wtm-item-description">' . wp_kses_post($item['description']) . '</div>';
