@@ -259,10 +259,27 @@ function wtm_render_opening_hours($show_today_only = false, $layout = 'table', $
             $output .= '</div>';
         }
         
-        // Show phone number if set (don't show optional note for today view)
-        $phone = get_option('wtm_opening_hours_phone', '');
-        if (!empty($phone)) {
-            $output .= '<div class="wtm-opening-hours-phone">' . esc_html($phone) . '</div>';
+        // Show phone numbers if set (don't show optional note for today view)
+        $phone1 = get_option('wtm_opening_hours_phone1', '');
+        $phone2 = get_option('wtm_opening_hours_phone2', '');
+        
+        // Backward compatibility
+        if (empty($phone1)) {
+            $phone1 = get_option('wtm_opening_hours_phone', '');
+        }
+        
+        if (!empty($phone1) || !empty($phone2)) {
+            $output .= '<div class="wtm-opening-hours-phone">';
+            if (!empty($phone1)) {
+                $output .= esc_html($phone1);
+            }
+            if (!empty($phone1) && !empty($phone2)) {
+                $output .= ' / ';
+            }
+            if (!empty($phone2)) {
+                $output .= esc_html($phone2);
+            }
+            $output .= '</div>';
         }
         
         $output .= '</div>';
@@ -368,6 +385,296 @@ function wtm_get_dietary_label_info($key) {
         'contains_peanuts' => array('label' => 'Contains peanuts', 'icon' => '🥜', 'class' => 'wtm-dietary-peanuts'),
     );
     return isset($labels[$key]) ? $labels[$key] : null;
+}
+
+// Map dietary labels to Schema.org diet types
+function wtm_get_schema_diet_types($dietary_labels) {
+    if (empty($dietary_labels) || !is_array($dietary_labels)) {
+        return array();
+    }
+    
+    $schema_mapping = array(
+        'vegan' => 'https://schema.org/VeganDiet',
+        'vegetarian' => 'https://schema.org/VegetarianDiet',
+        'can_be_vegetarian' => 'https://schema.org/VegetarianDiet', // Can be made vegetarian
+        'gluten_free' => 'https://schema.org/GlutenFreeDiet',
+        'can_be_gluten_free' => 'https://schema.org/GlutenFreeDiet', // Can be made gluten free
+    );
+    
+    $schema_diets = array();
+    foreach ($dietary_labels as $label) {
+        if (isset($schema_mapping[$label])) {
+            $schema_diets[] = $schema_mapping[$label];
+        }
+    }
+    
+    // Remove duplicates
+    return array_unique($schema_diets);
+}
+
+// Convert opening hours to Schema.org OpeningHoursSpecification format
+function wtm_get_schema_opening_hours() {
+    $hours = get_option('wtm_opening_hours', array());
+    if (empty($hours)) {
+        return array();
+    }
+    
+    $days_map = array(
+        'monday' => 'Monday',
+        'tuesday' => 'Tuesday',
+        'wednesday' => 'Wednesday',
+        'thursday' => 'Thursday',
+        'friday' => 'Friday',
+        'saturday' => 'Saturday',
+        'sunday' => 'Sunday',
+    );
+    
+    $opening_hours = array();
+    
+    foreach ($days_map as $day_key => $day_name) {
+        if (!isset($hours[$day_key])) {
+            continue;
+        }
+        
+        $row = $hours[$day_key];
+        
+        // Skip if closed
+        if (!empty($row['closed'])) {
+            continue;
+        }
+        
+        $open_time = isset($row['open']) ? $row['open'] : '';
+        $close_time = isset($row['close']) ? $row['close'] : '';
+        
+        if (empty($open_time) || empty($close_time)) {
+            continue;
+        }
+        
+        // Format time to HH:MM (Schema.org format)
+        $open_formatted = $open_time;
+        $close_formatted = $close_time;
+        
+        // Handle break times - create two separate entries if break exists
+        $break_start = isset($row['break_start']) ? $row['break_start'] : '';
+        $break_end = isset($row['break_end']) ? $row['break_end'] : '';
+        
+        if (!empty($break_start) && !empty($break_end)) {
+            // Morning hours (open to break start)
+            $opening_hours[] = array(
+                '@type' => 'OpeningHoursSpecification',
+                'dayOfWeek' => 'https://schema.org/' . $day_name,
+                'opens' => $open_formatted,
+                'closes' => $break_start,
+            );
+            
+            // Afternoon/evening hours (break end to close)
+            $opening_hours[] = array(
+                '@type' => 'OpeningHoursSpecification',
+                'dayOfWeek' => 'https://schema.org/' . $day_name,
+                'opens' => $break_end,
+                'closes' => $close_formatted,
+            );
+        } else {
+            // Single continuous hours
+            $opening_hours[] = array(
+                '@type' => 'OpeningHoursSpecification',
+                'dayOfWeek' => 'https://schema.org/' . $day_name,
+                'opens' => $open_formatted,
+                'closes' => $close_formatted,
+            );
+        }
+    }
+    
+    return $opening_hours;
+}
+
+// Get the last menu change timestamp
+function wtm_get_menu_change_timestamp() {
+    return get_option('wtm_menu_last_changed', 0);
+}
+
+// Update the menu change timestamp
+function wtm_update_menu_change_timestamp() {
+    update_option('wtm_menu_last_changed', current_time('timestamp'));
+}
+
+// Generate Schema.org structured data for menu items
+function wtm_generate_menu_schema() {
+    // Get all menu items
+    $menu_items = get_posts(array(
+        'post_type' => 'menu_item',
+        'posts_per_page' => -1,
+        'post_status' => 'publish',
+        'orderby' => 'title',
+        'order' => 'ASC',
+    ));
+    
+    if (empty($menu_items)) {
+        return '';
+    }
+    
+    // Build structured data - create Menu schema with all items (better for Google detection)
+    $menu_items_schema = array();
+    
+    foreach ($menu_items as $item) {
+        $dietary_labels = get_post_meta($item->ID, 'wtm_dietary_labels', true);
+        if (!is_array($dietary_labels)) {
+            $dietary_labels = array();
+        }
+        
+        $schema_diets = wtm_get_schema_diet_types($dietary_labels);
+        
+        $menu_item_schema = array(
+            '@type' => 'MenuItem',
+            'name' => get_the_title($item->ID),
+        );
+        
+        // Add description if available
+        $description = get_post_meta($item->ID, 'wtm_description', true);
+        if (!empty($description)) {
+            $menu_item_schema['description'] = wp_strip_all_tags($description);
+        }
+        
+        // Add price if available
+        $price = get_post_meta($item->ID, 'wtm_price', true);
+        if (!empty($price) && is_numeric($price)) {
+            $menu_item_schema['offers'] = array(
+                '@type' => 'Offer',
+                'price' => number_format((float)$price, 2, '.', ''),
+                'priceCurrency' => 'USD',
+            );
+        }
+        
+        // Add dietary information if available
+        if (!empty($schema_diets)) {
+            // If multiple diets, use array; if single, use string
+            if (count($schema_diets) === 1) {
+                $menu_item_schema['suitableForDiet'] = $schema_diets[0];
+            } else {
+                $menu_item_schema['suitableForDiet'] = $schema_diets;
+            }
+        }
+        
+        $menu_items_schema[] = $menu_item_schema;
+    }
+    
+    // Create a Restaurant schema with Menu (better for Google Rich Results)
+    // Get site name for restaurant name
+    $restaurant_name = get_bloginfo('name');
+    if (empty($restaurant_name)) {
+        $restaurant_name = 'Restaurant';
+    }
+    
+    // Build Restaurant schema with required properties
+    $restaurant_schema = array(
+        '@context' => 'https://schema.org',
+        '@type' => 'Restaurant',
+        'name' => $restaurant_name,
+    );
+    
+    // Add servesCuisine if available (optional but helpful)
+    $restaurant_schema['servesCuisine'] = 'Chinese'; // You can make this configurable later
+    
+    // Add telephone if available (support multiple phone numbers)
+    $phone1 = get_option('wtm_opening_hours_phone1', '');
+    $phone2 = get_option('wtm_opening_hours_phone2', '');
+    
+    // Backward compatibility
+    if (empty($phone1)) {
+        $phone1 = get_option('wtm_opening_hours_phone', '');
+    }
+    
+    $phones = array();
+    if (!empty($phone1)) {
+        $phones[] = $phone1;
+    }
+    if (!empty($phone2)) {
+        $phones[] = $phone2;
+    }
+    
+    if (!empty($phones)) {
+        // If only one phone, use string; if multiple, use array
+        if (count($phones) === 1) {
+            $restaurant_schema['telephone'] = $phones[0];
+        } else {
+            $restaurant_schema['telephone'] = $phones;
+        }
+    }
+    
+    // Add address if available
+    $address = get_option('wtm_restaurant_address', array());
+    if (!empty($address) && (!empty($address['street']) || !empty($address['city']))) {
+        $address_schema = array(
+            '@type' => 'PostalAddress',
+        );
+        
+        if (!empty($address['street'])) {
+            $address_schema['streetAddress'] = $address['street'];
+        }
+        if (!empty($address['city'])) {
+            $address_schema['addressLocality'] = $address['city'];
+        }
+        if (!empty($address['state'])) {
+            $address_schema['addressRegion'] = $address['state'];
+        }
+        if (!empty($address['postal_code'])) {
+            $address_schema['postalCode'] = $address['postal_code'];
+        }
+        if (!empty($address['country'])) {
+            $address_schema['addressCountry'] = $address['country'];
+        }
+        
+        $restaurant_schema['address'] = $address_schema;
+    }
+    
+    // Add opening hours if available
+    $opening_hours = wtm_get_schema_opening_hours();
+    if (!empty($opening_hours)) {
+        $restaurant_schema['openingHoursSpecification'] = $opening_hours;
+    }
+    
+    // Add menu structure
+    if (!empty($menu_items_schema)) {
+        $restaurant_schema['hasMenu'] = array(
+            '@type' => 'Menu',
+            'hasMenuItem' => $menu_items_schema,
+        );
+    }
+    
+    // Return as array with single schema (Restaurant with Menu)
+    return array(json_encode($restaurant_schema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
+// Get cached or generate Schema.org structured data
+function wtm_get_menu_schema() {
+    $last_changed = wtm_get_menu_change_timestamp();
+    $cache_version = '2.1'; // Increment to force cache refresh when structure changes
+    
+    // Get cached data
+    $cached = get_option('wtm_menu_schema_cache', array(
+        'data' => array(),
+        'generated_at' => 0,
+        'version' => '',
+    ));
+    
+    // Check if cache is valid (menu hasn't changed AND cache version matches)
+    if (!empty($cached['data']) && is_array($cached['data']) && 
+        $cached['generated_at'] >= $last_changed && 
+        isset($cached['version']) && $cached['version'] === $cache_version) {
+        return $cached['data'];
+    }
+    
+    // Generate new schema
+    $schema_scripts = wtm_generate_menu_schema();
+    
+    // Cache it with version
+    update_option('wtm_menu_schema_cache', array(
+        'data' => $schema_scripts,
+        'generated_at' => current_time('timestamp'),
+        'version' => $cache_version,
+    ));
+    
+    return $schema_scripts;
 }
 
 //Shortcode to display the menu (modified to include price and description)
@@ -584,10 +891,38 @@ function wtm_display_menu($atts) {
     } else {
         echo '<p class="wtm-no-categories">' . esc_html__('No menu categories found.', 'webtalize-menu') . '</p>';
     }
-
+    
     return ob_get_clean();
 }
 
 
 add_shortcode('restaurant_menu', 'wtm_display_menu');
 add_shortcode('wtm_menu', 'wtm_display_menu');
+
+// Output Schema.org structured data in head section (better for SEO)
+add_action('wp_head', 'wtm_output_menu_schema_in_head', 99);
+function wtm_output_menu_schema_in_head() {
+    // Check if we have any menu items first
+    $menu_items_count = wp_count_posts('menu_item');
+    if (!$menu_items_count || $menu_items_count->publish == 0) {
+        return; // No menu items, don't output
+    }
+    
+    // Get and output structured data
+    $schema_scripts = wtm_get_menu_schema();
+    if (!empty($schema_scripts) && is_array($schema_scripts)) {
+        foreach ($schema_scripts as $schema_json) {
+            if (!empty($schema_json)) {
+                // Validate JSON before output
+                $decoded = json_decode($schema_json, true);
+                if (json_last_error() === JSON_ERROR_NONE && !empty($decoded)) {
+                    echo "\n" . '<!-- Webtalize Menu Schema.org Structured Data -->' . "\n";
+                    echo '<script type="application/ld+json">' . "\n";
+                    // Use wp_json_encode to ensure proper escaping, then decode to get clean output
+                    echo wp_json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n";
+                    echo '</script>' . "\n";
+                }
+            }
+        }
+    }
+}

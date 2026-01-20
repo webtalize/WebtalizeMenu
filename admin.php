@@ -145,6 +145,11 @@ function wtm_save_meta_boxes_data($post_id) {
         // If no labels are checked, remove the meta
         delete_post_meta($post_id, 'wtm_dietary_labels');
     }
+    
+    // Update menu change timestamp when menu item is saved
+    if (function_exists('wtm_update_menu_change_timestamp')) {
+        wtm_update_menu_change_timestamp();
+    }
 }
 add_action('save_post', 'wtm_save_meta_boxes_data');
 
@@ -597,6 +602,11 @@ function wtm_save_quick_edit_data($post_id) {
         }
     }
     // If wtm_dietary_labels_present is not in POST, the field wasn't in the form, so don't change existing value
+    
+    // Update menu change timestamp when menu item is saved via quick edit
+    if (function_exists('wtm_update_menu_change_timestamp')) {
+        wtm_update_menu_change_timestamp();
+    }
 }
 
 
@@ -606,6 +616,18 @@ function wtm_save_quick_edit_data($post_id) {
 
 
 
+
+// Track menu changes when posts are deleted or trashed
+add_action('before_delete_post', 'wtm_track_menu_change_on_delete');
+add_action('wp_trash_post', 'wtm_track_menu_change_on_delete');
+function wtm_track_menu_change_on_delete($post_id) {
+    $post = get_post($post_id);
+    if ($post && $post->post_type === 'menu_item') {
+        if (function_exists('wtm_update_menu_change_timestamp')) {
+            wtm_update_menu_change_timestamp();
+        }
+    }
+}
 
 // CSV Import & Bulk Add admin pages
 add_action('admin_menu','wtm_add_import_pages');
@@ -813,8 +835,26 @@ function wtm_opening_hours_page() {
         $note = isset($_POST['wtm_opening_hours_note']) ? sanitize_textarea_field($_POST['wtm_opening_hours_note']) : '';
         update_option('wtm_opening_hours_note', $note);
 
-        $phone = isset($_POST['wtm_opening_hours_phone']) ? sanitize_text_field($_POST['wtm_opening_hours_phone']) : '';
-        update_option('wtm_opening_hours_phone', $phone);
+        $phone1 = isset($_POST['wtm_opening_hours_phone1']) ? sanitize_text_field($_POST['wtm_opening_hours_phone1']) : '';
+        update_option('wtm_opening_hours_phone1', $phone1);
+        
+        $phone2 = isset($_POST['wtm_opening_hours_phone2']) ? sanitize_text_field($_POST['wtm_opening_hours_phone2']) : '';
+        update_option('wtm_opening_hours_phone2', $phone2);
+        
+        // Keep backward compatibility - if phone1 exists, also save to old option name
+        if (!empty($phone1)) {
+            update_option('wtm_opening_hours_phone', $phone1);
+        }
+        
+        // Save address fields for Schema.org
+        $address = array(
+            'street' => isset($_POST['wtm_address_street']) ? sanitize_text_field($_POST['wtm_address_street']) : '',
+            'city' => isset($_POST['wtm_address_city']) ? sanitize_text_field($_POST['wtm_address_city']) : '',
+            'state' => isset($_POST['wtm_address_state']) ? sanitize_text_field($_POST['wtm_address_state']) : '',
+            'postal_code' => isset($_POST['wtm_address_postal_code']) ? sanitize_text_field($_POST['wtm_address_postal_code']) : '',
+            'country' => isset($_POST['wtm_address_country']) ? sanitize_text_field($_POST['wtm_address_country']) : '',
+        );
+        update_option('wtm_restaurant_address', $address);
 
         // Special hours
         $specials_in = isset($_POST['wtm_specials']) && is_array($_POST['wtm_specials']) ? $_POST['wtm_specials'] : array();
@@ -865,7 +905,20 @@ function wtm_opening_hours_page() {
     $hours = get_option('wtm_opening_hours', wtm_get_default_opening_hours());
     $specials = get_option('wtm_special_hours', array());
     $note = get_option('wtm_opening_hours_note', '');
-    $phone = get_option('wtm_opening_hours_phone', '');
+    $phone1 = get_option('wtm_opening_hours_phone1', '');
+    $phone2 = get_option('wtm_opening_hours_phone2', '');
+    
+    // Backward compatibility - if phone1 is empty but old phone exists, use it
+    if (empty($phone1)) {
+        $phone1 = get_option('wtm_opening_hours_phone', '');
+    }
+    $address = get_option('wtm_restaurant_address', array(
+        'street' => '',
+        'city' => 'Calgary',
+        'state' => 'Alberta',
+        'postal_code' => '',
+        'country' => 'Canada',
+    ));
 
     echo '<div class="wrap">';
     echo '<h1>' . esc_html__('Opening Hours', 'webtalize-menu') . '</h1>';
@@ -914,9 +967,43 @@ function wtm_opening_hours_page() {
     echo '<p>' . esc_html__('Displayed below the opening hours (e.g., "Holidays: Hours vary; open New Year\'s Day").', 'webtalize-menu') . '</p>';
     echo '<textarea name="wtm_opening_hours_note" rows="3" style="width:100%;">' . esc_textarea($note) . '</textarea>';
 
-    echo '<h3 style="margin-top:20px;">' . esc_html__('Phone Number', 'webtalize-menu') . '</h3>';
-    echo '<p>' . esc_html__('Displayed below today\'s hours when using [wtm_opening_hours show="today"].', 'webtalize-menu') . '</p>';
-    echo '<input type="text" name="wtm_opening_hours_phone" value="' . esc_attr($phone) . '" style="width:100%;max-width:400px;" placeholder="' . esc_attr__('(555) 123-4567', 'webtalize-menu') . '" />';
+    echo '<h3 style="margin-top:20px;">' . esc_html__('Phone Numbers', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Displayed below today\'s hours when using [wtm_opening_hours show="today"]. Also used for Schema.org structured data.', 'webtalize-menu') . '</p>';
+    echo '<table class="form-table">';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_opening_hours_phone1">' . esc_html__('Phone 1', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_opening_hours_phone1" name="wtm_opening_hours_phone1" value="' . esc_attr($phone1) . '" style="width:100%;max-width:400px;" placeholder="' . esc_attr__('(555) 123-4567', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_opening_hours_phone2">' . esc_html__('Phone 2', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_opening_hours_phone2" name="wtm_opening_hours_phone2" value="' . esc_attr($phone2) . '" style="width:100%;max-width:400px;" placeholder="' . esc_attr__('(555) 123-4568', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '</table>';
+    
+    echo '<h3 style="margin-top:20px;">' . esc_html__('Restaurant Address (for Schema.org SEO)', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Used for Google Rich Results and SEO. All fields are optional.', 'webtalize-menu') . '</p>';
+    echo '<table class="form-table">';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_address_street">' . esc_html__('Street Address', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_address_street" name="wtm_address_street" value="' . esc_attr($address['street']) . '" style="width:100%;max-width:500px;" placeholder="' . esc_attr__('123 Main Street', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_address_city">' . esc_html__('City', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_address_city" name="wtm_address_city" value="' . esc_attr($address['city']) . '" style="width:100%;max-width:300px;" placeholder="' . esc_attr__('Calgary', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_address_state">' . esc_html__('State/Province', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_address_state" name="wtm_address_state" value="' . esc_attr($address['state']) . '" style="width:100%;max-width:200px;" placeholder="' . esc_attr__('Alberta', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_address_postal_code">' . esc_html__('Postal Code', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_address_postal_code" name="wtm_address_postal_code" value="' . esc_attr($address['postal_code']) . '" style="width:100%;max-width:150px;" placeholder="' . esc_attr__('T2P 1J4', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_address_country">' . esc_html__('Country', 'webtalize-menu') . '</label></th>';
+    echo '<td><input type="text" id="wtm_address_country" name="wtm_address_country" value="' . esc_attr($address['country']) . '" style="width:100%;max-width:200px;" placeholder="' . esc_attr__('Canada', 'webtalize-menu') . '" /></td>';
+    echo '</tr>';
+    echo '</table>';
 
     echo '<h2 style="margin-top:25px;">' . esc_html__('Special Hours / Closures', 'webtalize-menu') . '</h2>';
     echo '<p>' . esc_html__('Use special hours for holidays, events, or temporary closures. Entries are removed one week after their end time.', 'webtalize-menu') . '</p>';
