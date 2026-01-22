@@ -107,17 +107,20 @@ function wtm_save_meta_boxes_data($post_id) {
         return;
     }
 
+    // Only update price if it's explicitly provided in POST
+    // Don't delete existing price if field is missing or empty (preserve existing value)
     if (isset($_POST['wtm_price'])) {
         $price = sanitize_text_field($_POST['wtm_price']);
-        if (!is_numeric($price)) {
-            $price = '';
-        }
-        if ($price !== '') {
+        // Trim whitespace
+        $price = trim($price);
+        // If price is provided and is numeric, update it
+        if ($price !== '' && is_numeric($price)) {
             update_post_meta($post_id, 'wtm_price', $price);
-        } else {
-            delete_post_meta($post_id, 'wtm_price');
         }
+        // If price is empty or not numeric, preserve existing price - don't delete it
+        // This prevents accidental deletion when other fields (like dietary labels) are changed
     }
+    // If wtm_price is not in POST at all, don't touch the existing price
 
     if (isset($_POST['wtm_description'])) {
         $description = sanitize_textarea_field($_POST['wtm_description']); // Sanitize textarea
@@ -553,17 +556,19 @@ function wtm_save_quick_edit_data($post_id) {
         return;
     }
 
+    // Only update price if it's explicitly provided in POST
+    // Don't delete existing price if field is missing or empty (preserve existing value)
     if (isset($_POST['wtm_price'])) {
         $price = sanitize_text_field($_POST['wtm_price']);
-        if (!is_numeric($price)) {
-            $price = '';
-        }
-        if ($price !== '') {
+        // Trim whitespace
+        $price = trim($price);
+        // If price is provided and is numeric, update it
+        if ($price !== '' && is_numeric($price)) {
             update_post_meta($post_id, 'wtm_price', $price);
-        } else {
-            delete_post_meta($post_id, 'wtm_price');
         }
+        // If price is empty or not numeric, preserve existing price - don't delete it
     }
+    // If wtm_price is not in POST at all, don't touch the existing price
 
     if (isset($_POST['wtm_description'])) {
         $description = sanitize_textarea_field($_POST['wtm_description']);
@@ -684,17 +689,59 @@ function wtm_settings_page() {
     if (isset($_POST['wtm_save_settings']) && check_admin_referer('wtm_settings_nonce')) {
         $three_column = isset($_POST['wtm_three_column']) ? '1' : '0';
         update_option('wtm_three_column_layout', $three_column);
+        
+        // Save API settings
+        if (isset($_POST['wtm_api_key'])) {
+            update_option('wtm_api_key', sanitize_text_field($_POST['wtm_api_key']));
+        }
+        if (isset($_POST['wtm_api_endpoint'])) {
+            update_option('wtm_api_endpoint', esc_url_raw($_POST['wtm_api_endpoint']));
+        }
+        if (isset($_POST['wtm_api_email'])) {
+            update_option('wtm_api_email', sanitize_email($_POST['wtm_api_email']));
+        }
+        $sync_enabled = isset($_POST['wtm_sync_enabled']) ? '1' : '0';
+        update_option('wtm_sync_enabled', $sync_enabled);
+        if (isset($_POST['wtm_sync_interval'])) {
+            update_option('wtm_sync_interval', sanitize_text_field($_POST['wtm_sync_interval']));
+        }
+        $ssl_verify = isset($_POST['wtm_ssl_verify']) ? '1' : '0';
+        update_option('wtm_ssl_verify', $ssl_verify);
+        
+        // Reschedule sync if settings changed
+        if (function_exists('wtm_schedule_api_sync')) {
+            wtm_schedule_api_sync();
+        }
+        
         echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'webtalize-menu') . '</p></div>';
     }
     
-    // Get current setting
+    // Get current settings
     $three_column_enabled = get_option('wtm_three_column_layout', '0');
+    $api_key = get_option('wtm_api_key', 'pwN1vU6YpfdPXYVGXr');
+    $api_endpoint = get_option('wtm_api_endpoint', 'https://pos.globalfoodsoft.com/pos/menu');
+    $api_email = get_option('wtm_api_email', 'API@leofus.com');
+    $sync_enabled = get_option('wtm_sync_enabled', '0');
+    $sync_interval = get_option('wtm_sync_interval', 'hourly');
+    $ssl_verify = get_option('wtm_ssl_verify', '1');
+    $last_sync_time = get_option('wtm_last_sync_time', '');
+    $last_sync_result = get_option('wtm_last_sync_result', array());
     
     echo '<div class="wrap">';
     echo '<h1>' . esc_html__('Webtalize Menu Settings', 'webtalize-menu') . '</h1>';
+    
+    // Tabs
+    echo '<nav class="nav-tab-wrapper">';
+    echo '<a href="#general" class="nav-tab nav-tab-active">' . esc_html__('General', 'webtalize-menu') . '</a>';
+    echo '<a href="#api-sync" class="nav-tab">' . esc_html__('API Sync', 'webtalize-menu') . '</a>';
+    echo '</nav>';
+    
     echo '<form method="post" action="">';
     wp_nonce_field('wtm_settings_nonce');
     
+    // General Settings Tab
+    echo '<div id="general-settings" class="tab-content">';
+    echo '<h2>' . esc_html__('General Settings', 'webtalize-menu') . '</h2>';
     echo '<table class="form-table">';
     echo '<tr>';
     echo '<th scope="row">' . esc_html__('Menu Display Layout', 'webtalize-menu') . '</th>';
@@ -707,9 +754,206 @@ function wtm_settings_page() {
     echo '</td>';
     echo '</tr>';
     echo '</table>';
+    echo '</div>';
+    
+    // API Sync Settings Tab
+    echo '<div id="api-sync-settings" class="tab-content" style="display:none;">';
+    echo '<h2>' . esc_html__('API Sync Settings', 'webtalize-menu') . '</h2>';
+    echo '<p class="description">' . esc_html__('Configure API integration to automatically sync menu prices from the GlobalFood API.', 'webtalize-menu') . '</p>';
+    
+    echo '<table class="form-table">';
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_api_key">' . esc_html__('API Key', 'webtalize-menu') . '</label></th>';
+    echo '<td>';
+    echo '<input type="text" id="wtm_api_key" name="wtm_api_key" value="' . esc_attr($api_key) . '" class="regular-text" />';
+    echo '<p class="description">' . esc_html__('Your API key for accessing the GlobalFood API.', 'webtalize-menu') . '</p>';
+    echo '</td>';
+    echo '</tr>';
+    
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_api_endpoint">' . esc_html__('API Endpoint', 'webtalize-menu') . '</label></th>';
+    echo '<td>';
+    echo '<input type="url" id="wtm_api_endpoint" name="wtm_api_endpoint" value="' . esc_attr($api_endpoint) . '" class="regular-text" />';
+    echo '<p class="description">' . esc_html__('The API endpoint URL for fetching menu data. Default: https://pos.globalfoodsoft.com/pos/menu', 'webtalize-menu') . '</p>';
+    echo '</td>';
+    echo '</tr>';
+    
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_api_email">' . esc_html__('Contact Email', 'webtalize-menu') . '</label></th>';
+    echo '<td>';
+    echo '<input type="email" id="wtm_api_email" name="wtm_api_email" value="' . esc_attr($api_email) . '" class="regular-text" />';
+    echo '<p class="description">' . esc_html__('Contact email for API support.', 'webtalize-menu') . '</p>';
+    echo '</td>';
+    echo '</tr>';
+    
+    echo '<tr>';
+    echo '<th scope="row">' . esc_html__('Automatic Sync', 'webtalize-menu') . '</th>';
+    echo '<td>';
+    echo '<label>';
+    echo '<input type="checkbox" name="wtm_sync_enabled" value="1" ' . checked($sync_enabled, '1', false) . ' />';
+    echo ' ' . esc_html__('Enable automatic price synchronization', 'webtalize-menu');
+    echo '</label>';
+    echo '<p class="description">' . esc_html__('When enabled, menu prices will be automatically synced from the API on a schedule.', 'webtalize-menu') . '</p>';
+    echo '</td>';
+    echo '</tr>';
+    
+    echo '<tr>';
+    echo '<th scope="row"><label for="wtm_sync_interval">' . esc_html__('Sync Interval', 'webtalize-menu') . '</label></th>';
+    echo '<td>';
+    echo '<select id="wtm_sync_interval" name="wtm_sync_interval">';
+    echo '<option value="hourly" ' . selected($sync_interval, 'hourly', false) . '>' . esc_html__('Hourly', 'webtalize-menu') . '</option>';
+    echo '<option value="twicedaily" ' . selected($sync_interval, 'twicedaily', false) . '>' . esc_html__('Twice Daily', 'webtalize-menu') . '</option>';
+    echo '<option value="daily" ' . selected($sync_interval, 'daily', false) . '>' . esc_html__('Daily', 'webtalize-menu') . '</option>';
+    echo '</select>';
+    echo '<p class="description">' . esc_html__('How often to automatically sync menu prices from the API.', 'webtalize-menu') . '</p>';
+    echo '</td>';
+    echo '</tr>';
+    
+    echo '<tr>';
+    echo '<th scope="row">' . esc_html__('SSL Verification', 'webtalize-menu') . '</th>';
+    echo '<td>';
+    echo '<label>';
+    echo '<input type="checkbox" name="wtm_ssl_verify" value="1" ' . checked($ssl_verify, '1', false) . ' />';
+    echo ' ' . esc_html__('Verify SSL certificates', 'webtalize-menu');
+    echo '</label>';
+    echo '<p class="description" style="color:#d63638;">';
+    echo '<strong>' . esc_html__('Warning:', 'webtalize-menu') . '</strong> ';
+    echo esc_html__('Disabling SSL verification is less secure. Only disable if you\'re experiencing TLS/SSL connection errors and you trust the API server.', 'webtalize-menu');
+    echo '</p>';
+    echo '</td>';
+    echo '</tr>';
+    echo '</table>';
+    
+    // Test Connection Section
+    echo '<h3>' . esc_html__('Test Connection', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Test your API connection before syncing. This will verify your API key and endpoint are working correctly.', 'webtalize-menu') . '</p>';
+    echo '<button type="button" id="wtm-test-connection-btn" class="button button-secondary">' . esc_html__('Test Connection', 'webtalize-menu') . '</button>';
+    echo '<span id="wtm-test-status" style="margin-left: 10px;"></span>';
+    
+    // Manual Sync Section
+    echo '<h3 style="margin-top: 20px;">' . esc_html__('Manual Sync', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Click the button below to manually sync menu prices from the API right now.', 'webtalize-menu') . '</p>';
+    echo '<button type="button" id="wtm-manual-sync-btn" class="button button-secondary">' . esc_html__('Sync Now', 'webtalize-menu') . '</button>';
+    echo '<span id="wtm-sync-status" style="margin-left: 10px;"></span>';
+    
+    // Last Sync Info
+    if (!empty($last_sync_time)) {
+        echo '<p class="description" style="margin-top: 10px;">';
+        echo '<strong>' . esc_html__('Last Sync:', 'webtalize-menu') . '</strong> ';
+        echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_sync_time)));
+        if (!empty($last_sync_result) && is_array($last_sync_result)) {
+            echo ' | ';
+            echo esc_html(sprintf(
+                __('Processed: %d, Updated: %d, Created: %d', 'webtalize-menu'),
+                $last_sync_result['items_processed'],
+                $last_sync_result['items_updated'],
+                $last_sync_result['items_created']
+            ));
+        }
+        echo '</p>';
+    }
+    
+    echo '</div>';
     
     submit_button(esc_html__('Save Settings', 'webtalize-menu'), 'primary', 'wtm_save_settings');
     echo '</form>';
+    
+    // Add JavaScript for tabs and manual sync
+    ?>
+    <script type="text/javascript">
+    jQuery(document).ready(function($) {
+        // Tab switching
+        $('.nav-tab').on('click', function(e) {
+            e.preventDefault();
+            var target = $(this).attr('href');
+            $('.nav-tab').removeClass('nav-tab-active');
+            $(this).addClass('nav-tab-active');
+            $('.tab-content').hide();
+            $(target + '-settings').show();
+        });
+        
+        // Test connection button
+        $('#wtm-test-connection-btn').on('click', function() {
+            var $btn = $(this);
+            var $status = $('#wtm-test-status');
+            
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Testing...', 'webtalize-menu')); ?>');
+            $status.html('<span class="spinner is-active" style="float:none;margin:0;"></span>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_test_connection',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var message = '<span style="color:green;">✓ ' + response.data.message + '</span>';
+                        
+                        // Show detailed structure info if available
+                        if (response.data.response_structure) {
+                            var struct = response.data.response_structure;
+                            message += '<br><details style="margin-top:10px;"><summary style="cursor:pointer;color:#0073aa;">Show response structure details</summary>';
+                            message += '<pre style="background:#f5f5f5;padding:10px;margin-top:5px;font-size:11px;max-height:300px;overflow:auto;">';
+                            message += JSON.stringify(struct, null, 2);
+                            message += '</pre></details>';
+                        }
+                        
+                        if (response.data.top_level_keys && response.data.top_level_keys.length > 0) {
+                            message += '<br><small style="color:#666;">Top-level keys: ' + response.data.top_level_keys.join(', ') + '</small>';
+                        }
+                        
+                        $status.html(message);
+                    } else {
+                        $status.html('<span style="color:red;">✗ ' + response.data.message + '</span>');
+                    }
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Test Connection', 'webtalize-menu')); ?>');
+                },
+                error: function() {
+                    $status.html('<span style="color:red;"><?php echo esc_js(__('Error: Failed to test connection.', 'webtalize-menu')); ?></span>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Test Connection', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+        
+        // Manual sync button
+        $('#wtm-manual-sync-btn').on('click', function() {
+            var $btn = $(this);
+            var $status = $('#wtm-sync-status');
+            
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Syncing...', 'webtalize-menu')); ?>');
+            $status.html('<span class="spinner is-active" style="float:none;margin:0;"></span>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_manual_sync',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $status.html('<span style="color:green;">✓ ' + response.data.message + '</span>');
+                        // Reload page after 2 seconds to show updated sync info
+                        setTimeout(function() {
+                            location.reload();
+                        }, 2000);
+                    } else {
+                        $status.html('<span style="color:red;">✗ ' + response.data.message + '</span>');
+                    }
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Sync Now', 'webtalize-menu')); ?>');
+                },
+                error: function() {
+                    $status.html('<span style="color:red;"><?php echo esc_js(__('Error: Failed to sync.', 'webtalize-menu')); ?></span>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Sync Now', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+    });
+    </script>
+    <?php
+    
     echo '</div>';
 }
 

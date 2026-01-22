@@ -108,5 +108,67 @@ function wtm_register_meta_fields() {
         'single' => true,
         'show_in_rest' => true,
     ));
+    
+    // Register additional fields from GlobalFood API
+    register_post_meta('menu_item', 'wtm_sku', array(
+        'type' => 'string',
+        'description' => 'SKU from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_active', array(
+        'type' => 'string',
+        'description' => 'Active status from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_active_begin', array(
+        'type' => 'string',
+        'description' => 'Active begin date from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_active_end', array(
+        'type' => 'string',
+        'description' => 'Active end date from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_active_days', array(
+        'type' => 'string',
+        'description' => 'Active days from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_sizes', array(
+        'type' => 'string',
+        'description' => 'Sizes/variants from GlobalFood API (JSON)',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_allergens', array(
+        'type' => 'array',
+        'description' => 'Allergens from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_nutritional_values', array(
+        'type' => 'string',
+        'description' => 'Nutritional values from GlobalFood API (JSON)',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_kitchen_internal_name', array(
+        'type' => 'string',
+        'description' => 'Kitchen internal name from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
+    register_post_meta('menu_item', 'wtm_category_id', array(
+        'type' => 'integer',
+        'description' => 'Category ID from GlobalFood API',
+        'single' => true,
+        'show_in_rest' => false,
+    ));
 }
 add_action('init', 'wtm_register_meta_fields');

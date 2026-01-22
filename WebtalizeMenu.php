@@ -26,3 +26,4 @@ define( 'WTM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 require_once WTM_PLUGIN_DIR . 'post-types.php';
 require_once WTM_PLUGIN_DIR . 'frontend.php';
 require_once WTM_PLUGIN_DIR . 'admin.php';
+require_once WTM_PLUGIN_DIR . 'api-sync.php';

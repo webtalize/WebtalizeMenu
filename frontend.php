@@ -818,10 +818,19 @@ function wtm_display_menu($atts) {
                     if (!is_array($dietary_labels)) {
                         $dietary_labels = array();
                     }
+                    // Get price - ensure we always get it, even if empty
+                    $item_price = get_post_meta(get_the_ID(), 'wtm_price', true);
+                    // Sanitize price - handle empty, null, false, or whitespace
+                    if (empty($item_price) || $item_price === null || $item_price === false) {
+                        $item_price = '';
+                    } else {
+                        $item_price = trim($item_price);
+                    }
+                    
                     $items[] = array(
                         'ID' => get_the_ID(),
                         'title' => get_the_title(),
-                        'price' => get_post_meta(get_the_ID(), 'wtm_price', true),
+                        'price' => $item_price,
                         'description' => get_post_meta(get_the_ID(), 'wtm_description', true),
                         'dietary_labels' => $dietary_labels,
                     );
@@ -855,8 +864,31 @@ function wtm_display_menu($atts) {
 
                     echo '<div class="wtm-item-header">'; // Container for name and price
                     echo '<h3 class="wtm-item-name">' . esc_html($item['title']) . '</h3>'; 
-                    if ($item['price'] !== '') {
-                        echo '<span class="wtm-item-price">$' . esc_html($item['price']) . '</span>';
+                    // Display price - get it fresh from database to ensure we have the latest value
+                    $item_id = isset($item['ID']) ? $item['ID'] : 0;
+                    $price = '';
+                    if ($item_id > 0) {
+                        $price = get_post_meta($item_id, 'wtm_price', true);
+                    } else {
+                        $price = isset($item['price']) ? $item['price'] : '';
+                    }
+                    // Clean and validate price
+                    $price = trim($price);
+                    // Check if price is valid (not empty, not null, is numeric or contains numbers)
+                    $has_price = !empty($price) && $price !== '' && $price !== null && $price !== false && (is_numeric($price) || preg_match('/[\d.]/', $price));
+                    if ($has_price) {
+                        // Clean price - remove any non-numeric characters except decimal point
+                        $clean_price = preg_replace('/[^0-9.]/', '', $price);
+                        // Ensure it's a valid number
+                        if (is_numeric($clean_price) && (float)$clean_price > 0) {
+                            echo '<span class="wtm-item-price">$' . esc_html(number_format((float)$clean_price, 2, '.', '')) . '</span>';
+                        } else {
+                            // Price exists but invalid - show empty span for layout
+                            echo '<span class="wtm-item-price wtm-item-price-empty" style="display:none;"></span>';
+                        }
+                    } else {
+                        // No price - render empty span to maintain layout
+                        echo '<span class="wtm-item-price wtm-item-price-empty" style="display:none;"></span>';
                     }
                     echo '</div>'; // Close header
 
@@ -867,7 +899,8 @@ function wtm_display_menu($atts) {
                             $info = wtm_get_dietary_label_info($label_key);
                             if ($info) {
                                 echo '<span class="wtm-dietary-badge ' . esc_attr($info['class']) . '" title="' . esc_attr($info['label']) . '">';
-                                echo '<span class="wtm-dietary-icon">' . esc_html($info['icon']) . '</span>';
+                                // Don't escape emoji icons - they need to render as-is
+                                echo '<span class="wtm-dietary-icon">' . $info['icon'] . '</span>';
                                 echo '<span class="wtm-dietary-text">' . esc_html($info['label']) . '</span>';
                                 echo '</span>';
                             }
