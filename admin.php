@@ -734,6 +734,7 @@ function wtm_settings_page() {
     echo '<nav class="nav-tab-wrapper">';
     echo '<a href="#general" class="nav-tab nav-tab-active">' . esc_html__('General', 'webtalize-menu') . '</a>';
     echo '<a href="#api-sync" class="nav-tab">' . esc_html__('API Sync', 'webtalize-menu') . '</a>';
+    echo '<a href="#dietary-labels" class="nav-tab">' . esc_html__('Dietary Labels', 'webtalize-menu') . '</a>';
     echo '</nav>';
     
     echo '<form method="post" action="">';
@@ -838,7 +839,7 @@ function wtm_settings_page() {
     
     // Last Sync Info
     if (!empty($last_sync_time)) {
-        echo '<p class="description" style="margin-top: 10px;">';
+        echo '<p class="description wtm-last-sync-info" style="margin-top: 10px;">';
         echo '<strong>' . esc_html__('Last Sync:', 'webtalize-menu') . '</strong> ';
         echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_sync_time)));
         if (!empty($last_sync_result) && is_array($last_sync_result)) {
@@ -851,7 +852,87 @@ function wtm_settings_page() {
             ));
         }
         echo '</p>';
+    } else {
+        // Create empty placeholder for JavaScript to update
+        echo '<p class="description wtm-last-sync-info" style="margin-top: 10px; display:none;"></p>';
     }
+    
+    // Name Mismatch Review Section
+    $name_mismatches = get_transient('wtm_name_mismatches');
+    if (!empty($name_mismatches) && is_array($name_mismatches)) {
+        echo '<h3 style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">' . esc_html__('Name Mismatch Review', 'webtalize-menu') . '</h3>';
+        echo '<p class="description">' . esc_html__('The following items have matching item numbers but different names. Review and approve updates if the restaurant has renamed these items.', 'webtalize-menu') . '</p>';
+        
+        echo '<div id="wtm-name-mismatch-review">';
+        echo '<table class="wp-list-table widefat fixed striped" style="margin-top: 15px;">';
+        echo '<thead>';
+        echo '<tr>';
+        echo '<th style="width: 80px;">' . esc_html__('Item #', 'webtalize-menu') . '</th>';
+        echo '<th style="width: 40%;">' . esc_html__('Current Name (WordPress)', 'webtalize-menu') . '</th>';
+        echo '<th style="width: 40%;">' . esc_html__('New Name (API)', 'webtalize-menu') . '</th>';
+        echo '<th style="width: 100px;">' . esc_html__('Action', 'webtalize-menu') . '</th>';
+        echo '</tr>';
+        echo '</thead>';
+        echo '<tbody>';
+        
+        foreach ($name_mismatches as $idx => $mismatch) {
+            $post_id = intval($mismatch['post_id']);
+            $item_number = esc_html($mismatch['item_number']);
+            $wp_name = esc_html($mismatch['wp_name']);
+            $api_name = esc_html($mismatch['api_name']);
+            $api_price = isset($mismatch['api_price']) ? esc_html($mismatch['api_price']) : '';
+            
+            echo '<tr data-post-id="' . $post_id . '" data-mismatch-index="' . $idx . '">';
+            echo '<td><strong>' . $item_number . '</strong></td>';
+            echo '<td>' . $wp_name . '</td>';
+            echo '<td>' . $api_name;
+            if (!empty($api_price)) {
+                echo ' <span style="color:#666;">(' . esc_html__('Price:', 'webtalize-menu') . ' $' . $api_price . ')</span>';
+            }
+            echo '</td>';
+            echo '<td>';
+            echo '<button type="button" class="button button-small wtm-approve-update" data-post-id="' . $post_id . '" data-mismatch-index="' . $idx . '">' . esc_html__('Update', 'webtalize-menu') . '</button> ';
+            echo '<button type="button" class="button button-small wtm-reject-update" data-post-id="' . $post_id . '" data-mismatch-index="' . $idx . '">' . esc_html__('Skip', 'webtalize-menu') . '</button>';
+            echo '</td>';
+            echo '</tr>';
+        }
+        
+        echo '</tbody>';
+        echo '</table>';
+        echo '<p style="margin-top: 15px;">';
+        echo '<button type="button" class="button button-primary" id="wtm-approve-all-updates">' . esc_html__('Update All', 'webtalize-menu') . '</button> ';
+        echo '<button type="button" class="button" id="wtm-reject-all-updates">' . esc_html__('Skip All', 'webtalize-menu') . '</button>';
+        echo '</p>';
+        echo '</div>';
+    }
+    
+    echo '</div>';
+    
+    // Auto-Detect Dietary Labels Section (separate from API sync)
+    echo '<div id="dietary-labels-settings" class="tab-content" style="display:none;">';
+    echo '<h2>' . esc_html__('Auto-Detect Dietary Labels', 'webtalize-menu') . '</h2>';
+    echo '<p class="description">' . esc_html__('Automatically detect and set dietary labels for menu items based on their descriptions. This feature works independently of API integration.', 'webtalize-menu') . '</p>';
+    
+    echo '<div style="background: #f0f0f1; padding: 15px; border-left: 4px solid #2271b1; margin: 20px 0;">';
+    echo '<h3 style="margin-top: 0;">' . esc_html__('How It Works', 'webtalize-menu') . '</h3>';
+    echo '<ul style="margin-left: 20px;">';
+    echo '<li>' . esc_html__('Scans all menu items that have descriptions', 'webtalize-menu') . '</li>';
+    echo '<li>' . esc_html__('Only updates items that don\'t already have dietary labels set', 'webtalize-menu') . '</li>';
+    echo '<li>' . esc_html__('Detects: Vegan, Vegetarian, Gluten-Free, Spicy levels, Peanuts, and more', 'webtalize-menu') . '</li>';
+    echo '<li>' . esc_html__('Safe to run multiple times - won\'t overwrite existing labels', 'webtalize-menu') . '</li>';
+    echo '</ul>';
+    echo '</div>';
+    
+    echo '<h3>' . esc_html__('Detect Labels Now', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('Click the button below to scan all menu items and auto-detect dietary labels from their descriptions.', 'webtalize-menu') . '</p>';
+    echo '<button type="button" id="wtm-detect-labels-btn" class="button button-primary">' . esc_html__('Auto-Detect Dietary Labels', 'webtalize-menu') . '</button>';
+    echo '<span id="wtm-detect-labels-status" style="margin-left: 10px;"></span>';
+    
+    // Results area
+    echo '<div id="wtm-detect-labels-results" style="margin-top: 20px; display: none;">';
+    echo '<h4>' . esc_html__('Results', 'webtalize-menu') . '</h4>';
+    echo '<div id="wtm-detect-labels-results-content"></div>';
+    echo '</div>';
     
     echo '</div>';
     
@@ -904,6 +985,16 @@ function wtm_settings_page() {
                             message += '<br><small style="color:#666;">Top-level keys: ' + response.data.top_level_keys.join(', ') + '</small>';
                         }
                         
+                        // Add API response sample in a textarea for easy copying
+                        if (response.data.api_response_sample) {
+                            message += '<br><br><details style="margin-top:10px;"><summary style="cursor:pointer;color:#0073aa;font-weight:600;">Show API Response Sample (for debugging)</summary>';
+                            message += '<textarea readonly style="width:100%;height:300px;font-family:monospace;font-size:11px;margin-top:10px;padding:10px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;overflow:auto;" onclick="this.select();">';
+                            message += response.data.api_response_sample;
+                            message += '</textarea>';
+                            message += '<p style="margin-top:5px;font-size:11px;color:#666;">Click the textarea and press Ctrl+C (or Cmd+C on Mac) to copy the JSON</p>';
+                            message += '</details>';
+                        }
+                        
                         $status.html(message);
                     } else {
                         $status.html('<span style="color:red;">✗ ' + response.data.message + '</span>');
@@ -934,11 +1025,44 @@ function wtm_settings_page() {
                 },
                 success: function(response) {
                     if (response.success) {
-                        $status.html('<span style="color:green;">✓ ' + response.data.message + '</span>');
-                        // Reload page after 2 seconds to show updated sync info
-                        setTimeout(function() {
-                            location.reload();
-                        }, 2000);
+                        var result = response.data.result || {};
+                        var message = '✓ ' + response.data.message;
+                        if (result.items_processed !== undefined) {
+                            message += '<br><strong>Details:</strong> Processed: ' + result.items_processed + 
+                                      ', Updated: ' + result.items_updated + 
+                                      ', Created: ' + result.items_created;
+                        }
+                        
+                        // Add API response sample in a textarea for easy copying
+                        if (result.api_response_sample) {
+                            message += '<br><br><details style="margin-top:10px;"><summary style="cursor:pointer;color:#0073aa;font-weight:600;">📋 Show API Response Sample (Click to copy JSON)</summary>';
+                            message += '<textarea readonly style="width:100%;height:400px;font-family:monospace;font-size:11px;margin-top:10px;padding:10px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;overflow:auto;resize:vertical;" onclick="this.select();document.execCommand(\'copy\');" onfocus="this.select();">';
+                            message += result.api_response_sample;
+                            message += '</textarea>';
+                            message += '<p style="margin-top:5px;font-size:11px;color:#666;">💡 Click the textarea to select all and copy (Ctrl+C or Cmd+C). The JSON shows the first category with its items.</p>';
+                            message += '</details>';
+                        }
+                        
+                        $status.html('<span style="color:green;">' + message + '</span>');
+                        
+                        // Update the last sync info without refreshing the page
+                        var now = new Date();
+                        var dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+                        var syncInfo = 'Last Sync: ' + dateStr;
+                        if (result.items_processed !== undefined) {
+                            syncInfo += ' | Processed: ' + result.items_processed + 
+                                       ', Updated: ' + result.items_updated + 
+                                       ', Created: ' + result.items_created;
+                        }
+                        
+                        // Update or create the last sync info display
+                        var $lastSync = $('.wtm-last-sync-info');
+                        if ($lastSync.length === 0) {
+                            // Create it if it doesn't exist
+                            $status.after('<p class="description wtm-last-sync-info" style="margin-top: 10px;"><strong>' + syncInfo + '</strong></p>');
+                        } else {
+                            $lastSync.html('<strong>' + syncInfo + '</strong>');
+                        }
                     } else {
                         $status.html('<span style="color:red;">✗ ' + response.data.message + '</span>');
                     }
@@ -947,6 +1071,207 @@ function wtm_settings_page() {
                 error: function() {
                     $status.html('<span style="color:red;"><?php echo esc_js(__('Error: Failed to sync.', 'webtalize-menu')); ?></span>');
                     $btn.prop('disabled', false).text('<?php echo esc_js(__('Sync Now', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+        
+        // Name mismatch review handlers
+        var nameMismatches = <?php echo json_encode($name_mismatches ?: array()); ?>;
+        
+        // Approve single update
+        $(document).on('click', '.wtm-approve-update', function() {
+            var $btn = $(this);
+            var postId = $btn.data('post-id');
+            var mismatchIndex = $btn.data('mismatch-index');
+            var $row = $btn.closest('tr');
+            
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Updating...', 'webtalize-menu')); ?>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_approve_name_update',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>',
+                    post_id: postId,
+                    mismatch_index: mismatchIndex
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $row.fadeOut(300, function() {
+                            $(this).remove();
+                            checkIfTableEmpty();
+                        });
+                    } else {
+                        alert('Error: ' + response.data.message);
+                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Update', 'webtalize-menu')); ?>');
+                    }
+                },
+                error: function() {
+                    alert('<?php echo esc_js(__('Error: Failed to update item.', 'webtalize-menu')); ?>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Update', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+        
+        // Reject single update
+        $(document).on('click', '.wtm-reject-update', function() {
+            var $btn = $(this);
+            var postId = $btn.data('post-id');
+            var mismatchIndex = $btn.data('mismatch-index');
+            var $row = $btn.closest('tr');
+            
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Skipping...', 'webtalize-menu')); ?>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_reject_name_update',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>',
+                    post_id: postId,
+                    mismatch_index: mismatchIndex
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $row.fadeOut(300, function() {
+                            $(this).remove();
+                            checkIfTableEmpty();
+                        });
+                    } else {
+                        alert('Error: ' + response.data.message);
+                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Skip', 'webtalize-menu')); ?>');
+                    }
+                },
+                error: function() {
+                    alert('<?php echo esc_js(__('Error: Failed to skip item.', 'webtalize-menu')); ?>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Skip', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+        
+        // Approve all updates
+        $('#wtm-approve-all-updates').on('click', function() {
+            if (!confirm('<?php echo esc_js(__('Are you sure you want to update all items? This will change the names of all items shown in the table.', 'webtalize-menu')); ?>')) {
+                return;
+            }
+            
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Updating All...', 'webtalize-menu')); ?>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_approve_all_name_updates',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#wtm-name-mismatch-review').fadeOut(300, function() {
+                            $(this).html('<p style="color:green;padding:20px;">✓ ' + response.data.message + '</p>').fadeIn();
+                        });
+                    } else {
+                        alert('Error: ' + response.data.message);
+                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Update All', 'webtalize-menu')); ?>');
+                    }
+                },
+                error: function() {
+                    alert('<?php echo esc_js(__('Error: Failed to update items.', 'webtalize-menu')); ?>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Update All', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+        
+        // Reject all updates
+        $('#wtm-reject-all-updates').on('click', function() {
+            if (!confirm('<?php echo esc_js(__('Are you sure you want to skip all items? They will be removed from the review list.', 'webtalize-menu')); ?>')) {
+                return;
+            }
+            
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Skipping All...', 'webtalize-menu')); ?>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_reject_all_name_updates',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#wtm-name-mismatch-review').fadeOut(300, function() {
+                            $(this).html('<p style="color:#666;padding:20px;">' + response.data.message + '</p>').fadeIn();
+                        });
+                    } else {
+                        alert('Error: ' + response.data.message);
+                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Skip All', 'webtalize-menu')); ?>');
+                    }
+                },
+                error: function() {
+                    alert('<?php echo esc_js(__('Error: Failed to skip items.', 'webtalize-menu')); ?>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Skip All', 'webtalize-menu')); ?>');
+                }
+            });
+        });
+        
+        function checkIfTableEmpty() {
+            var $table = $('#wtm-name-mismatch-review table tbody');
+            if ($table.find('tr').length === 0) {
+                $('#wtm-name-mismatch-review').fadeOut(300, function() {
+                    $(this).html('<p style="color:#666;padding:20px;"><?php echo esc_js(__('All items have been reviewed.', 'webtalize-menu')); ?></p>').fadeIn();
+                });
+            }
+        }
+        
+        // Auto-detect dietary labels button
+        $('#wtm-detect-labels-btn').on('click', function() {
+            var $btn = $(this);
+            var $status = $('#wtm-detect-labels-status');
+            var $results = $('#wtm-detect-labels-results');
+            var $resultsContent = $('#wtm-detect-labels-results-content');
+            
+            if (!confirm('<?php echo esc_js(__('This will scan all menu items and auto-detect dietary labels from descriptions. Items that already have labels will be skipped. Continue?', 'webtalize-menu')); ?>')) {
+                return;
+            }
+            
+            $btn.prop('disabled', true).text('<?php echo esc_js(__('Processing...', 'webtalize-menu')); ?>');
+            $status.html('<span class="spinner is-active" style="float:none;margin:0;"></span> <?php echo esc_js(__('Scanning menu items...', 'webtalize-menu')); ?>');
+            $results.hide();
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'wtm_auto_detect_labels',
+                    nonce: '<?php echo wp_create_nonce('wtm_api_sync_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var result = response.data;
+                        var message = '<span style="color:green;">✓ ' + result.message + '</span>';
+                        
+                        if (result.stats) {
+                            message += '<br><br><strong><?php echo esc_js(__('Statistics:', 'webtalize-menu')); ?></strong><ul style="margin-left:20px;">';
+                            message += '<li><?php echo esc_js(__('Items scanned:', 'webtalize-menu')); ?> ' + result.stats.scanned + '</li>';
+                            message += '<li><?php echo esc_js(__('Labels detected:', 'webtalize-menu')); ?> ' + result.stats.detected + '</li>';
+                            message += '<li><?php echo esc_js(__('Items skipped (already had labels):', 'webtalize-menu')); ?> ' + result.stats.skipped + '</li>';
+                            message += '<li><?php echo esc_js(__('Items with no description:', 'webtalize-menu')); ?> ' + result.stats.no_description + '</li>';
+                            message += '</ul>';
+                        }
+                        
+                        $status.html(message);
+                        $resultsContent.html(message);
+                        $results.show();
+                    } else {
+                        $status.html('<span style="color:red;">✗ ' + response.data.message + '</span>');
+                    }
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Auto-Detect Dietary Labels', 'webtalize-menu')); ?>');
+                },
+                error: function() {
+                    $status.html('<span style="color:red;"><?php echo esc_js(__('Error: Failed to process items.', 'webtalize-menu')); ?></span>');
+                    $btn.prop('disabled', false).text('<?php echo esc_js(__('Auto-Detect Dietary Labels', 'webtalize-menu')); ?>');
                 }
             });
         });
