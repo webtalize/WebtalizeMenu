@@ -668,7 +668,19 @@ function wtm_add_top_level_menu() {
 function wtm_main_page() {
     echo '<div class="wrap">';
     echo '<h1>' . esc_html__('Webtalize Menu', 'webtalize-menu') . '</h1>';
-    echo '<p>' . esc_html__('Quick links:', 'webtalize-menu') . '</p>';
+    
+    // Shortcode Information - Prominently displayed at the top
+    echo '<div style="background: #f0f6fc; border-left: 4px solid #2c3338; padding: 20px; border-radius: 5px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+    echo '<h2 style="color: #1d2327; margin-top: 0;">' . esc_html__('Display Your Menu', 'webtalize-menu') . '</h2>';
+    echo '<p style="font-size: 16px; margin-bottom: 15px; color: #50575e;">' . esc_html__('To display your restaurant menu on any page or post, use this shortcode:', 'webtalize-menu') . '</p>';
+    echo '<div style="background: #fff; padding: 15px; border-radius: 3px; margin: 10px 0; border: 1px solid #c3c4c7;">';
+    echo '<code style="font-size: 18px; color: #1d2327; font-weight: bold;">[restaurant_menu]</code>';
+    echo '<button type="button" onclick="navigator.clipboard.writeText(\'[restaurant_menu]\').then(() => { this.textContent = \'' . esc_js(__('Copied!', 'webtalize-menu')) . '\'; setTimeout(() => { this.textContent = \'' . esc_js(__('Copy', 'webtalize-menu')) . '\'; }, 2000); })" style="margin-left: 15px; padding: 8px 15px; background: #2c3338; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-size: 14px;">' . esc_html__('Copy', 'webtalize-menu') . '</button>';
+    echo '</div>';
+    echo '<p style="margin-bottom: 0; font-size: 14px; color: #50575e;">' . esc_html__('Simply add this shortcode to any page or post where you want your menu to appear.', 'webtalize-menu') . '</p>';
+    echo '</div>';
+    
+    echo '<h2>' . esc_html__('Quick Links', 'webtalize-menu') . '</h2>';
     echo '<ul>';
     echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=menu_item')) . '">' . esc_html__('All Menu Items', 'webtalize-menu') . '</a></li>';
     echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=menu_item&page=wtm-csv-import')) . '">' . esc_html__('CSV Import', 'webtalize-menu') . '</a></li>';
@@ -743,6 +755,23 @@ function wtm_settings_page() {
     // General Settings Tab
     echo '<div id="general-settings" class="tab-content">';
     echo '<h2>' . esc_html__('General Settings', 'webtalize-menu') . '</h2>';
+    
+    // Shortcode Information Section
+    echo '<div style="background: #f0f0f1; padding: 15px; border-left: 4px solid #2271b1; margin: 20px 0;">';
+    echo '<h3 style="margin-top: 0;">' . esc_html__('Display Your Menu', 'webtalize-menu') . '</h3>';
+    echo '<p>' . esc_html__('To display your restaurant menu on any page or post, use one of these shortcodes:', 'webtalize-menu') . '</p>';
+    echo '<ul style="margin-left: 20px;">';
+    echo '<li><strong><code>[restaurant_menu]</code></strong> - ' . esc_html__('Display the full menu', 'webtalize-menu') . '</li>';
+    echo '<li><strong><code>[wtm_menu]</code></strong> - ' . esc_html__('Alternative shortcode (same as above)', 'webtalize-menu') . '</li>';
+    echo '</ul>';
+    echo '<p><strong>' . esc_html__('Example:', 'webtalize-menu') . '</strong> ' . esc_html__('Add', 'webtalize-menu') . ' <code>[restaurant_menu]</code> ' . esc_html__('to any page or post where you want the menu to appear.', 'webtalize-menu') . '</p>';
+    echo '<div style="background: #fff; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 3px;">';
+    echo '<strong>' . esc_html__('Quick Copy:', 'webtalize-menu') . '</strong> ';
+    echo '<input type="text" value="[restaurant_menu]" readonly onclick="this.select(); document.execCommand(\'copy\');" style="width: 200px; padding: 5px; font-family: monospace; background: #f9f9f9; border: 1px solid #ccc; cursor: pointer;" title="' . esc_attr__('Click to copy', 'webtalize-menu') . '" />';
+    echo ' <span style="color: #666; font-size: 0.9em;">' . esc_html__('(Click to copy)', 'webtalize-menu') . '</span>';
+    echo '</div>';
+    echo '</div>';
+    
     echo '<table class="form-table">';
     echo '<tr>';
     echo '<th scope="row">' . esc_html__('Menu Display Layout', 'webtalize-menu') . '</th>';

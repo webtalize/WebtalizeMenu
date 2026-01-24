@@ -1,85 +1,131 @@
+/* Webtalize Menu (WTM) Theme-Aware Styles */
+/* CSS Custom Properties - Themes can override these */
+:root {
+    --wtm-text-color: inherit;
+    --wtm-heading-color: inherit;
+    --wtm-price-color: var(--wp--preset--color--accent, #d4a574);
+    --wtm-description-color: currentColor;
+    --wtm-border-color: currentColor;
+    --wtm-bg-color: transparent;
+    --wtm-card-bg: var(--wp--preset--color--background, #fff);
+    --wtm-hover-bg: var(--wp--preset--color--background, rgba(0,0,0,0.02));
+    --wtm-border-light: rgba(0,0,0,0.1);
+    --wtm-shadow: rgba(0,0,0,0.1);
+}
+
 /* Webtalize Menu (WTM) basic styles */
-.wtm-menu-container{margin:1rem 0;padding:0;max-width:1200px;margin-left:auto;margin-right:auto}
-.wtm-category{margin-bottom:2.5rem;padding-bottom:2rem;border-bottom:1px solid #e8e8e8}
+.wtm-menu-container{margin:1rem 0;padding:0;max-width:1200px;margin-left:auto;margin-right:auto;color:var(--wtm-text-color)}
+.wtm-category{margin-bottom:2.5rem;padding-bottom:2rem;border-bottom:1px solid var(--wtm-border-light, rgba(0,0,0,0.1))}
 .wtm-category:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 
 /* Category header with image and title grouped together */
 .wtm-category-header{display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap}
 .wtm-category-image{flex-shrink:0;margin:0}
-.wtm-category-image img{width:210px;height:63px;object-fit:cover;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:block;border:2px solid #f5f5f5;transition:all 0.3s ease}
+.wtm-category-image img{width:210px;height:63px;object-fit:cover;border-radius:8px;box-shadow:0 2px 8px var(--wtm-shadow, rgba(0,0,0,0.12));display:block;border:2px solid var(--wtm-border-light, rgba(0,0,0,0.05));transition:all 0.3s ease}
 @media (min-width:768px){.wtm-category-image img{width:270px;height:77px}}
-.wtm-category-image:hover img{box-shadow:0 4px 12px rgba(0,0,0,0.18);transform:translateY(-1px);border-color:#e0e0e0}
-.wtm-category h2{margin:0!important;font-size:32px!important;font-weight:700!important;color:#2c2c2c!important;padding:0!important;border:none!important;flex:1;line-height:1.3!important}
+.wtm-category-image:hover img{box-shadow:0 4px 12px var(--wtm-shadow, rgba(0,0,0,0.18));transform:translateY(-1px);border-color:var(--wtm-border-light, rgba(0,0,0,0.15))}
+.wtm-category h2{margin:0!important;font-size:32px!important;font-weight:700!important;color:var(--wtm-heading-color, inherit)!important;padding:0!important;border:none!important;flex:1;line-height:1.3!important}
 @media (min-width:768px){.wtm-category h2{font-size:40px!important}}
 
 /* Menu items styling */
 .wtm-menu-items{list-style:none;margin:0;padding:0}
 /* Default: single column layout */
-.wtm-menu-item{padding:1rem 0;border-bottom:1px solid #f0f0f0;transition:background-color 0.2s ease}
-.wtm-menu-item:hover{background-color:#fafafa;margin-left:-0.5rem;margin-right:-0.5rem;padding-left:0.5rem;padding-right:0.5rem;border-radius:6px}
+.wtm-menu-item{padding:1rem 0;border-bottom:1px solid var(--wtm-border-light, rgba(0,0,0,0.08));transition:background-color 0.2s ease;background-color:var(--wtm-bg-color, transparent)}
+.wtm-menu-item:hover{background-color:var(--wtm-hover-bg, rgba(0,0,0,0.02));margin-left:-0.5rem;margin-right:-0.5rem;padding-left:0.5rem;padding-right:0.5rem;border-radius:6px}
 .wtm-menu-item:last-child{border-bottom:none}
 /* 3-column layout - only when enabled */
 .wtm-menu-items.wtm-three-column{display:grid;gap:1.5rem;grid-template-columns:1fr;list-style:none}
 @media (min-width:768px){.wtm-menu-items.wtm-three-column{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:1024px){.wtm-menu-items.wtm-three-column{grid-template-columns:repeat(3,1fr)}}
-.wtm-menu-items.wtm-three-column .wtm-menu-item{border-bottom:none;padding:1rem;background-color:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);list-style:none}
-.wtm-menu-items.wtm-three-column .wtm-menu-item:hover{background-color:#fafafa;margin-left:0;margin-right:0;padding-left:1rem;padding-right:1rem;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+.wtm-menu-items.wtm-three-column .wtm-menu-item{border-bottom:none;padding:1rem;background-color:var(--wtm-card-bg, #fff);border-radius:6px;box-shadow:0 1px 3px var(--wtm-shadow, rgba(0,0,0,0.1));list-style:none}
+.wtm-menu-items.wtm-three-column .wtm-menu-item:hover{background-color:var(--wtm-hover-bg, rgba(0,0,0,0.02));margin-left:0;margin-right:0;padding-left:1rem;padding-right:1rem;box-shadow:0 2px 6px var(--wtm-shadow, rgba(0,0,0,0.15))}
 .wtm-item-header{display:flex!important;justify-content:space-between!important;align-items:flex-start!important;flex-wrap:nowrap!important;gap:0.75rem!important;width:100%!important;position:relative!important}
-.wtm-item-name{font-weight:600!important;margin:0!important;flex:1 1 auto!important;min-width:0!important;font-size:18px!important;color:#1a1a1a!important;line-height:1.4!important;word-wrap:break-word!important;max-width:calc(100% - 100px)!important}
-.wtm-item-price{color:#d4a574!important;font-weight:700!important;margin-left:auto!important;white-space:nowrap!important;font-size:20px!important;flex-shrink:0!important;flex-grow:0!important;display:inline-block!important;visibility:visible!important;opacity:1!important;min-width:fit-content!important;position:relative!important;z-index:1!important}
+.wtm-item-name{font-weight:600!important;margin:0!important;flex:1 1 auto!important;min-width:0!important;font-size:18px!important;color:var(--wtm-heading-color, inherit)!important;line-height:1.4!important;word-wrap:break-word!important;max-width:calc(100% - 100px)!important}
+.wtm-item-price{color:var(--wtm-price-color, var(--wp--preset--color--accent, #d4a574))!important;font-weight:700!important;margin-left:auto!important;white-space:nowrap!important;font-size:20px!important;flex-shrink:0!important;flex-grow:0!important;display:inline-block!important;visibility:visible!important;opacity:1!important;min-width:fit-content!important;position:relative!important;z-index:1!important}
 .wtm-item-price-empty{display:none!important}
 .wtm-item-dietary-labels{clear:both!important;width:100%!important;margin-top:0.75rem!important}
-.wtm-item-description{color:#666!important;margin-top:0.5rem!important;line-height:1.6!important;font-size:16px!important}
-.wtm-no-items,.wtm-no-categories{color:#999;font-style:italic;padding:1rem 0}
+.wtm-item-description{color:var(--wtm-description-color, currentColor);opacity:0.7;margin-top:0.5rem!important;line-height:1.6!important;font-size:16px!important}
+.wtm-no-items,.wtm-no-categories{color:var(--wtm-description-color, currentColor);opacity:0.6;font-style:italic;padding:1rem 0}
 
 /* Opening hours */
-.wtm-opening-hours{margin:1rem auto;max-width:680px}
+:root {
+    --wtm-status-open-bg: #e8f5e9;
+    --wtm-status-open-border: #4caf50;
+    --wtm-status-closed-bg: #ffebee;
+    --wtm-status-closed-border: #f44336;
+    --wtm-status-closing-bg: #fff3cd;
+    --wtm-status-closing-border: #ff9800;
+}
+
+.wtm-opening-hours{margin:1rem auto;max-width:680px;color:var(--wtm-text-color, inherit)}
 .wtm-opening-hours-table{width:100%;max-width:680px;margin:0 auto;border-collapse:collapse;border:0!important;background:transparent!important;box-shadow:none!important;font-size:1.5em;border-spacing:0!important}
 .wtm-opening-hours-table tr{border:0!important;background:transparent!important;box-shadow:none!important}
 .wtm-opening-hours-table th,.wtm-opening-hours-table td{padding:0.4rem 0.6rem;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important}
 .wtm-opening-hours-day{font-weight:600}
-.wtm-opening-hours-title{font-size:2.1em;line-height:1.15;margin:0 0 0.7rem;font-weight:700;letter-spacing:0.02em}
+.wtm-opening-hours-title{font-size:2.1em;line-height:1.15;margin:0 0 0.7rem;font-weight:700;letter-spacing:0.02em;color:var(--wtm-heading-color, inherit)}
 .wtm-opening-hours-note{margin-top:1rem;color:inherit;font-size:1.365em;line-height:1.5}
 .wtm-opening-hours-special ul{margin:0.4rem 0 0.8rem 1.2rem}
 .wtm-opening-hours-list{list-style:none;margin:0;padding:0;font-size:1.53em;line-height:1.4}
 .wtm-opening-hours-list li{margin:0.2rem 0;display:flex;align-items:baseline;gap:0.75rem}
 .wtm-opening-hours-list .wtm-opening-hours-day{min-width:120px;display:inline-block}
-.wtm-opening-hours-status{display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding:0.8rem 1.2rem;border-radius:8px;background:#f8f9fa}
-.wtm-opening-hours-status.wtm-status-open{background:#e8f5e9;border-left:4px solid #4caf50}
-.wtm-opening-hours-status.wtm-status-closed{background:#ffebee;border-left:4px solid #f44336}
+.wtm-opening-hours-status{display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding:0.8rem 1.2rem;border-radius:8px;background:var(--wtm-card-bg, rgba(0,0,0,0.02))}
+.wtm-opening-hours-status.wtm-status-open{background:var(--wtm-status-open-bg, #e8f5e9);border-left:4px solid var(--wtm-status-open-border, #4caf50)}
+.wtm-opening-hours-status.wtm-status-closed{background:var(--wtm-status-closed-bg, #ffebee);border-left:4px solid var(--wtm-status-closed-border, #f44336)}
 .wtm-status-icon{font-size:2em;line-height:1;font-weight:700;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;flex-shrink:0}
-.wtm-status-open .wtm-status-icon{background:#4caf50;color:#fff;animation:pulse 2s ease-in-out infinite}
-.wtm-status-closed .wtm-status-icon{background:#f44336;color:#fff}
-.wtm-opening-hours-status.wtm-status-closing-soon{background:#fff3cd;border-left:4px solid #ff9800}
-.wtm-status-closing-soon .wtm-status-icon{background:#ff9800;color:#fff;animation:pulse 2s ease-in-out infinite}
+.wtm-status-open .wtm-status-icon{background:var(--wtm-status-open-border, #4caf50);color:#fff;animation:pulse 2s ease-in-out infinite}
+.wtm-status-closed .wtm-status-icon{background:var(--wtm-status-closed-border, #f44336);color:#fff}
+.wtm-opening-hours-status.wtm-status-closing-soon{background:var(--wtm-status-closing-bg, #fff3cd);border-left:4px solid var(--wtm-status-closing-border, #ff9800)}
+.wtm-status-closing-soon .wtm-status-icon{background:var(--wtm-status-closing-border, #ff9800);color:#fff;animation:pulse 2s ease-in-out infinite}
 .wtm-opening-hours-status .wtm-opening-hours-title{margin:0;font-size:1.8em;flex:1}
 .wtm-opening-hours-phone{margin-top:1rem;font-size:1.3em;font-weight:600;color:inherit}
 .wtm-opening-hours-today{font-size:2em;line-height:1.4;margin:0.8rem 0}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.05);opacity:0.9}}
 
 /* Dietary & Allergen Filtering */
-.wtm-dietary-filters{margin:2rem 0;padding:1.5rem;background:#f8f9fa;border-radius:8px;max-width:1200px;margin-left:auto;margin-right:auto}
-.wtm-filters-title{margin:0 0 1rem 0!important;font-size:1.5em!important;font-weight:600!important;color:#2c2c2c!important}
+:root {
+    --wtm-filter-active-bg: var(--wp--preset--color--accent, #4caf50);
+    --wtm-filter-active-hover: #45a049;
+    --wtm-filter-clear-bg: #6c757d;
+    --wtm-filter-clear-hover: #5a6268;
+}
+
+.wtm-dietary-filters{margin:2rem 0;padding:1.5rem;background:var(--wtm-card-bg, rgba(0,0,0,0.02));border-radius:8px;max-width:1200px;margin-left:auto;margin-right:auto}
+.wtm-filters-title{margin:0 0 1rem 0!important;font-size:1.5em!important;font-weight:600!important;color:var(--wtm-heading-color, inherit)!important}
 .wtm-filter-buttons{display:flex;flex-wrap:wrap;gap:0.75rem}
-.wtm-filter-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1rem;background:#fff;border:2px solid #e0e0e0;border-radius:6px;cursor:pointer;transition:all 0.2s ease;font-size:0.95em;font-weight:500;color:#333}
-.wtm-filter-btn:hover{background:#f0f0f0;border-color:#d0d0d0;transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,0.1)}
-.wtm-filter-btn.active{background:#4caf50;border-color:#4caf50;color:#fff}
-.wtm-filter-btn.active:hover{background:#45a049;border-color:#45a049}
-.wtm-filter-btn.wtm-filter-clear{background:#6c757d;border-color:#6c757d;color:#fff}
-.wtm-filter-btn.wtm-filter-clear:hover{background:#5a6268;border-color:#5a6268}
+.wtm-filter-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1rem;background:var(--wtm-card-bg, #fff);border:2px solid var(--wtm-border-light, rgba(0,0,0,0.15));border-radius:6px;cursor:pointer;transition:all 0.2s ease;font-size:0.95em;font-weight:500;color:var(--wtm-text-color, inherit)}
+.wtm-filter-btn:hover{background:var(--wtm-hover-bg, rgba(0,0,0,0.05));border-color:var(--wtm-border-light, rgba(0,0,0,0.2));transform:translateY(-1px);box-shadow:0 2px 4px var(--wtm-shadow, rgba(0,0,0,0.1))}
+.wtm-filter-btn.active{background:var(--wtm-filter-active-bg, #4caf50);border-color:var(--wtm-filter-active-bg, #4caf50);color:#fff}
+.wtm-filter-btn.active:hover{background:var(--wtm-filter-active-hover, #45a049);border-color:var(--wtm-filter-active-hover, #45a049)}
+.wtm-filter-btn.wtm-filter-clear{background:var(--wtm-filter-clear-bg, #6c757d);border-color:var(--wtm-filter-clear-bg, #6c757d);color:#fff}
+.wtm-filter-btn.wtm-filter-clear:hover{background:var(--wtm-filter-clear-hover, #5a6268);border-color:var(--wtm-filter-clear-hover, #5a6268)}
 .wtm-filter-icon{font-size:1.2em;line-height:1}
 .wtm-filter-label{white-space:nowrap}
 
 /* Dietary labels on menu items */
+:root {
+    --wtm-badge-vegan-bg: #e8f5e9;
+    --wtm-badge-vegan-border: #81c784;
+    --wtm-badge-vegan-text: #1b5e20;
+    --wtm-badge-gluten-bg: #fff3e0;
+    --wtm-badge-gluten-border: #ffb74d;
+    --wtm-badge-gluten-text: #e65100;
+    --wtm-badge-spicy-bg: #ffebee;
+    --wtm-badge-spicy-border: #ef5350;
+    --wtm-badge-spicy-text: #b71c1c;
+    --wtm-badge-can-bg: #fff9c4;
+    --wtm-badge-can-border: #fdd835;
+    --wtm-badge-can-text: #f57f17;
+}
+
 .wtm-item-dietary-labels{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;margin-bottom:0.5rem}
-.wtm-dietary-badge{display:inline-flex;align-items:center;gap:0.35rem;padding:0.35rem 0.7rem;background:#f0f7f0;border:1px solid #c8e6c9;border-radius:4px;font-size:0.85em;font-weight:500;color:#2e7d32;transition:all 0.2s ease}
-.wtm-dietary-badge:hover{background:#e8f5e9;border-color:#a5d6a7;transform:translateY(-1px)}
+.wtm-dietary-badge{display:inline-flex;align-items:center;gap:0.35rem;padding:0.35rem 0.7rem;background:var(--wtm-badge-vegan-bg, rgba(0,0,0,0.05));border:1px solid var(--wtm-badge-vegan-border, rgba(0,0,0,0.1));border-radius:4px;font-size:0.85em;font-weight:500;color:var(--wtm-badge-vegan-text, currentColor);transition:all 0.2s ease}
+.wtm-dietary-badge:hover{background:var(--wtm-hover-bg, rgba(0,0,0,0.08));border-color:var(--wtm-border-light, rgba(0,0,0,0.15));transform:translateY(-1px)}
 .wtm-dietary-icon{font-size:1.1em;line-height:1}
 .wtm-dietary-text{white-space:nowrap}
-.wtm-dietary-vegan .wtm-dietary-badge{background:#e8f5e9;border-color:#81c784;color:#1b5e20}
-.wtm-dietary-gluten-free .wtm-dietary-badge{background:#fff3e0;border-color:#ffb74d;color:#e65100}
-.wtm-dietary-vegetarian .wtm-dietary-badge{background:#e8f5e9;border-color:#81c784;color:#1b5e20}
-.wtm-dietary-spicy-1 .wtm-dietary-badge,.wtm-dietary-spicy-2 .wtm-dietary-badge,.wtm-dietary-spicy-3 .wtm-dietary-badge{background:#ffebee;border-color:#ef5350;color:#b71c1c}
-.wtm-dietary-can-vegetarian .wtm-dietary-badge,.wtm-dietary-can-gluten-free .wtm-dietary-badge{background:#fff9c4;border-color:#fdd835;color:#f57f17}
-.wtm-dietary-peanuts .wtm-dietary-badge{background:#fff3e0;border-color:#ffb74d;color:#e65100}
-.wtm-no-filtered-items{text-align:center;padding:2rem;color:#999;font-style:italic;font-size:1.1em}
+.wtm-dietary-vegan .wtm-dietary-badge{background:var(--wtm-badge-vegan-bg, #e8f5e9);border-color:var(--wtm-badge-vegan-border, #81c784);color:var(--wtm-badge-vegan-text, #1b5e20)}
+.wtm-dietary-gluten-free .wtm-dietary-badge{background:var(--wtm-badge-gluten-bg, #fff3e0);border-color:var(--wtm-badge-gluten-border, #ffb74d);color:var(--wtm-badge-gluten-text, #e65100)}
+.wtm-dietary-vegetarian .wtm-dietary-badge{background:var(--wtm-badge-vegan-bg, #e8f5e9);border-color:var(--wtm-badge-vegan-border, #81c784);color:var(--wtm-badge-vegan-text, #1b5e20)}
+.wtm-dietary-spicy-1 .wtm-dietary-badge,.wtm-dietary-spicy-2 .wtm-dietary-badge,.wtm-dietary-spicy-3 .wtm-dietary-badge{background:var(--wtm-badge-spicy-bg, #ffebee);border-color:var(--wtm-badge-spicy-border, #ef5350);color:var(--wtm-badge-spicy-text, #b71c1c)}
+.wtm-dietary-can-vegetarian .wtm-dietary-badge,.wtm-dietary-can-gluten-free .wtm-dietary-badge{background:var(--wtm-badge-can-bg, #fff9c4);border-color:var(--wtm-badge-can-border, #fdd835);color:var(--wtm-badge-can-text, #f57f17)}
+.wtm-dietary-peanuts .wtm-dietary-badge{background:var(--wtm-badge-gluten-bg, #fff3e0);border-color:var(--wtm-badge-gluten-border, #ffb74d);color:var(--wtm-badge-gluten-text, #e65100)}
+.wtm-no-filtered-items{text-align:center;padding:2rem;color:var(--wtm-description-color, currentColor);opacity:0.6;font-style:italic;font-size:1.1em}

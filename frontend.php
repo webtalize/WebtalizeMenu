@@ -1,7 +1,9 @@
 <?php
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
-    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), '1.0.9');
+    // Add version with timestamp to prevent caching issues during development
+    $css_version = '2.0.1';
+    wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), $css_version);
     wp_enqueue_script('wtm-dietary-filter', WTM_PLUGIN_URL . 'js/wtm-dietary-filter.js', array(), '1.0.0', true);
 }
 add_action('wp_enqueue_scripts', 'wtm_enqueue_scripts');
@@ -848,7 +850,8 @@ function wtm_display_menu($atts) {
                 // Check if 3-column layout is enabled
                 $three_column_enabled = get_option('wtm_three_column_layout', '0');
                 $items_class = 'wtm-menu-items';
-                if ($three_column_enabled === '1') {
+                // Check if enabled (handles both '1' string and 1 integer)
+                if ($three_column_enabled == '1' || $three_column_enabled === 1 || $three_column_enabled === true) {
                     $items_class .= ' wtm-three-column';
                 }
                 echo '<ul class="' . esc_attr($items_class) . '">';
