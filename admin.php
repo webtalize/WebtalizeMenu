@@ -264,15 +264,31 @@ function wtm_add_category_filter() {
     // Get selected category from URL
     $selected = isset($_GET['menu_category_filter']) ? $_GET['menu_category_filter'] : '';
     
-    // Get all menu categories
+    // Get all menu categories (don't order by name, we'll sort by custom order)
     $categories = get_terms(array(
         'taxonomy' => 'menu_category',
         'hide_empty' => false,
-        'orderby' => 'name',
-        'order' => 'ASC',
     ));
     
     if (!empty($categories) && !is_wp_error($categories)) {
+        // Sort categories by their custom order (wtm_category_order)
+        // Categories without sort order will appear at the end
+        usort($categories, function($a, $b) {
+            $order_a = get_term_meta($a->term_id, 'wtm_category_order', true);
+            $order_b = get_term_meta($b->term_id, 'wtm_category_order', true);
+            
+            // Convert to integers, defaulting to 999999 if empty/null/0
+            // This ensures categories without sort order appear at the end
+            $order_a = ($order_a !== '' && $order_a !== null && $order_a !== false && $order_a !== '0') ? intval($order_a) : 999999;
+            $order_b = ($order_b !== '' && $order_b !== null && $order_b !== false && $order_b !== '0') ? intval($order_b) : 999999;
+            
+            if ($order_a !== $order_b) {
+                return $order_a - $order_b;
+            }
+            // If same order, sort by name
+            return strcmp($a->name, $b->name);
+        });
+        
         echo '<select name="menu_category_filter" id="menu_category_filter">';
         echo '<option value="">' . esc_html__('All Categories', 'webtalize-menu') . '</option>';
         
