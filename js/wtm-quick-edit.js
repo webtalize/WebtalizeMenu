@@ -1,7 +1,8 @@
-(function($, wp) {
+(function($) {
     'use strict';
 
-    $(function() {
+    // Wait for jQuery to be ready
+    $(document).ready(function() {
         // The "Quick Edit" link is actually a button, so we can listen for clicks on it.
         $(document).on('click', 'button.editinline', function() {
             // Get the post ID from the table row.
@@ -67,7 +68,111 @@
                         edit_row.find('.wtm_dietary_labels_input[data-label="' + label + '"]').prop('checked', true);
                     });
                 }
+                
+                // Handle featured image
+                var row = $('#post-' + post_id);
+                var imageData = row.find('.wtm-featured-image-data');
+                var imageId = imageData.attr('data-id') || '';
+                var imageUrl = imageData.attr('data-url') || '';
+                
+                var $imagePreview = edit_row.find('.wtm-quick-edit-image-preview img');
+                var $imageInput = edit_row.find('.wtm_featured_image_id');
+                var $removeBtn = edit_row.find('.wtm-remove-featured-image-btn');
+                
+                if (imageId && imageUrl) {
+                    $imageInput.val(imageId);
+                    $imagePreview.attr('src', imageUrl).show();
+                    $removeBtn.show();
+                } else {
+                    $imageInput.val('');
+                    $imagePreview.hide();
+                    $removeBtn.hide();
+                }
             }, 50); // A small delay is needed to ensure the row is ready.
         });
+        
+        // Featured image upload handler
+        // Use event delegation and create a new media uploader for each click
+        $(document).on('click', '.wtm-upload-featured-image-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('Upload button clicked'); // Debug
+            
+            // Check if wp.media is available
+            if (typeof wp === 'undefined') {
+                console.error('wp is undefined');
+                alert('WordPress media library is not available. Please refresh the page.');
+                return;
+            }
+            
+            if (typeof wp.media === 'undefined') {
+                console.error('wp.media is undefined');
+                alert('Media library is not available. Please refresh the page.');
+                return;
+            }
+            
+            var $button = $(this);
+            var $wrapper = $button.closest('.wtm-quick-edit-image-wrapper');
+            
+            if ($wrapper.length === 0) {
+                console.error('Could not find image wrapper');
+                return;
+            }
+            
+            var $preview = $wrapper.find('.wtm-quick-edit-image-preview img');
+            var $input = $wrapper.find('.wtm_featured_image_id');
+            var $removeBtn = $wrapper.find('.wtm-remove-featured-image-btn');
+            
+            console.log('Creating media uploader'); // Debug
+            
+            // Create a new media uploader instance for each click
+            var mediaUploader = wp.media({
+                title: 'Choose Featured Image',
+                button: {
+                    text: 'Choose Image'
+                },
+                multiple: false,
+                library: {
+                    type: 'image'
+                }
+            });
+            
+            // Handle image selection
+            mediaUploader.on('select', function() {
+                var attachment = mediaUploader.state().get('selection').first().toJSON();
+                var imageUrl = attachment.url;
+                
+                // Try to get a smaller size if available
+                if (attachment.sizes && attachment.sizes.thumbnail) {
+                    imageUrl = attachment.sizes.thumbnail.url;
+                } else if (attachment.sizes && attachment.sizes.medium) {
+                    imageUrl = attachment.sizes.medium.url;
+                }
+                
+                $input.val(attachment.id);
+                $preview.attr('src', imageUrl).show();
+                $removeBtn.show();
+                
+                console.log('Image selected:', attachment.id); // Debug
+            });
+            
+            // Open the media uploader
+            console.log('Opening media uploader'); // Debug
+            mediaUploader.open();
+        });
+        
+        // Featured image remove handler
+        $(document).on('click', '.wtm-remove-featured-image-btn', function(e) {
+            e.preventDefault();
+            var $button = $(this);
+            var $wrapper = $button.closest('.wtm-quick-edit-image-wrapper');
+            var $preview = $wrapper.find('.wtm-quick-edit-image-preview img');
+            var $input = $wrapper.find('.wtm_featured_image_id');
+            
+            $input.val('');
+            $preview.hide();
+            $button.hide();
+        });
     });
-})(jQuery, wp);
+})(jQuery);

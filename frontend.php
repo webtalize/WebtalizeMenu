@@ -2,7 +2,7 @@
 // Enqueue scripts and styles.
 function wtm_enqueue_scripts() {
     // Add version with timestamp to prevent caching issues during development
-    $css_version = '2.0.1';
+    $css_version = '2.1.0';
     wp_enqueue_style('wtm-styles', WTM_PLUGIN_URL . 'css/wtm-styles.css', array(), $css_version);
     wp_enqueue_script('wtm-dietary-filter', WTM_PLUGIN_URL . 'js/wtm-dietary-filter.js', array(), '1.0.0', true);
 }
@@ -864,7 +864,9 @@ function wtm_display_menu($atts) {
                     }, $item['dietary_labels'])) : '';
                     
                     echo '<li class="wtm-menu-item' . esc_attr($dietary_class) . '" data-dietary="' . esc_attr($dietary_data) . '">';
-
+                    
+                    echo '<div class="wtm-item-content">';
+                    
                     echo '<div class="wtm-item-header">'; // Container for name and price
                     echo '<h3 class="wtm-item-name">' . esc_html($item['title']) . '</h3>'; 
                     // Display price - get it fresh from database to ensure we have the latest value
@@ -895,26 +897,58 @@ function wtm_display_menu($atts) {
                     }
                     echo '</div>'; // Close header
 
-                    // Display dietary labels/icons
-                    if (!empty($item['dietary_labels'])) {
-                        echo '<div class="wtm-item-dietary-labels">';
-                        foreach ($item['dietary_labels'] as $label_key) {
-                            $info = wtm_get_dietary_label_info($label_key);
-                            if ($info) {
-                                echo '<span class="wtm-dietary-badge ' . esc_attr($info['class']) . '" title="' . esc_attr($info['label']) . '">';
-                                // Don't escape emoji icons - they need to render as-is
-                                echo '<span class="wtm-dietary-icon">' . $info['icon'] . '</span>';
-                                echo '<span class="wtm-dietary-text">' . esc_html($info['label']) . '</span>';
-                                echo '</span>';
+                    // Display image and dietary labels in the same row
+                    $item_id = isset($item['ID']) ? $item['ID'] : 0;
+                    $has_image = false;
+                    $has_dietary_labels = !empty($item['dietary_labels']);
+                    
+                    if ($item_id > 0 && has_post_thumbnail($item_id)) {
+                        $has_image = true;
+                    }
+                    
+                    // Only create wrapper if we have image or dietary labels
+                    if ($has_image || $has_dietary_labels) {
+                        echo '<div class="wtm-item-image-labels-row">';
+                        
+                        // Display dietary labels/icons (left side)
+                        if ($has_dietary_labels) {
+                            echo '<div class="wtm-item-dietary-labels">';
+                            foreach ($item['dietary_labels'] as $label_key) {
+                                $info = wtm_get_dietary_label_info($label_key);
+                                if ($info) {
+                                    echo '<span class="wtm-dietary-badge ' . esc_attr($info['class']) . '" title="' . esc_attr($info['label']) . '">';
+                                    // Don't escape emoji icons - they need to render as-is
+                                    echo '<span class="wtm-dietary-icon">' . $info['icon'] . '</span>';
+                                    echo '<span class="wtm-dietary-text">' . esc_html($info['label']) . '</span>';
+                                    echo '</span>';
+                                }
+                            }
+                            echo '</div>';
+                        }
+                        
+                        // Display featured image if available (right side)
+                        if ($has_image) {
+                            $image_id = get_post_thumbnail_id($item_id);
+                            $image_url = wp_get_attachment_image_url($image_id, 'medium');
+                            if ($image_url) {
+                                $image_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+                                if (empty($image_alt)) {
+                                    $image_alt = esc_attr($item['title']);
+                                }
+                                echo '<div class="wtm-item-image">';
+                                echo '<img src="' . esc_url($image_url) . '" alt="' . esc_attr($image_alt) . '" />';
+                                echo '</div>';
                             }
                         }
-                        echo '</div>';
+                        
+                        echo '</div>'; // Close wtm-item-image-labels-row
                     }
 
                     if ($item['description']) {
                         echo '<div class="wtm-item-description">' . wp_kses_post($item['description']) . '</div>';
                     }
 
+                    echo '</div>'; // Close wtm-item-content
                     echo '</li>';
                 }
                 echo '</ul>';

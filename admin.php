@@ -162,6 +162,7 @@ function wtm_add_columns_to_menu_items_table($columns) {
     $new_columns = array();
     foreach ($columns as $key => $title) {
         if ($key == 'date') { // Insert new columns before date
+            $new_columns['wtm_featured_image'] = __('Image', 'webtalize-menu');
             $new_columns['wtm_price'] = __('Price', 'webtalize-menu');
             $new_columns['wtm_description'] = __('Description', 'webtalize-menu');
             $new_columns['wtm_dietary_labels'] = __('Dietary Labels', 'webtalize-menu');
@@ -176,6 +177,24 @@ function wtm_add_columns_to_menu_items_table($columns) {
 add_action('manage_menu_item_posts_custom_column', 'wtm_display_custom_columns', 10, 2);
 function wtm_display_custom_columns($column, $post_id) {
     switch ($column) {
+        case 'wtm_featured_image':
+            $thumbnail_id = get_post_thumbnail_id($post_id);
+            if ($thumbnail_id) {
+                $image_url = wp_get_attachment_image_url($thumbnail_id, 'thumbnail');
+                if ($image_url) {
+                    if (is_ssl()) {
+                        $image_url = set_url_scheme($image_url, 'https');
+                    }
+                    echo '<img src="' . esc_url($image_url) . '" style="width:50px;height:50px;object-fit:cover;border-radius:4px;" />';
+                    // Add hidden data for Quick Edit JavaScript
+                    echo '<span class="hidden wtm-featured-image-data" data-id="' . esc_attr($thumbnail_id) . '" data-url="' . esc_attr($image_url) . '"></span>';
+                } else {
+                    echo '<span class="hidden wtm-featured-image-data" data-id="" data-url=""></span>';
+                }
+            } else {
+                echo '<span class="hidden wtm-featured-image-data" data-id="" data-url=""></span>';
+            }
+            break;
         case 'wtm_price':
             $price = get_post_meta($post_id, 'wtm_price', true);
             if (!empty($price)) {
@@ -489,6 +508,23 @@ function wtm_add_quick_edit_fields($column_name, $post_type) {
             </fieldset>
             <?php
             break;
+        case 'wtm_featured_image':
+            ?>
+            <fieldset class="inline-edit-col-left wtm-featured-image-quick-edit" style="clear:both; margin-top:10px; border-top: 1px solid #ddd; padding-top: 10px;">
+                <div class="inline-edit-col">
+                    <span class="title"><?php _e('Featured Image', 'webtalize-menu'); ?></span>
+                    <div class="wtm-quick-edit-image-wrapper" style="margin-top:8px;">
+                        <div class="wtm-quick-edit-image-preview" style="margin-bottom:8px;min-height:80px;">
+                            <img src="" style="max-width:100px;height:auto;display:none;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1);" />
+                        </div>
+                        <input type="hidden" name="wtm_featured_image_id" class="wtm_featured_image_id" value="" />
+                        <button type="button" class="button wtm-upload-featured-image-btn"><?php _e('Upload/Add Image', 'webtalize-menu'); ?></button>
+                        <button type="button" class="button wtm-remove-featured-image-btn" style="display:none;"><?php _e('Remove Image', 'webtalize-menu'); ?></button>
+                    </div>
+                </div>
+            </fieldset>
+            <?php
+            break;
         case 'wtm_dietary_labels':
             // Define all dietary options
             $all_options = array(
@@ -579,10 +615,24 @@ function wtm_save_quick_edit_data($post_id) {
         }
     }
 
-    // Save dietary labels from quick edit
-    // Check if we're in quick edit mode by looking for the inline-save action
+    // Save featured image from quick edit
     $is_quick_edit = isset($_POST['action']) && $_POST['action'] === 'inline-save';
     
+    if ($is_quick_edit && isset($_POST['wtm_featured_image_id'])) {
+        $featured_image_id = sanitize_text_field($_POST['wtm_featured_image_id']);
+        if (!empty($featured_image_id) && is_numeric($featured_image_id)) {
+            // Verify the attachment exists and is an image
+            $attachment = get_post($featured_image_id);
+            if ($attachment && wp_attachment_is_image($featured_image_id)) {
+                set_post_thumbnail($post_id, $featured_image_id);
+            }
+        } else {
+            // Empty value means remove featured image
+            delete_post_thumbnail($post_id);
+        }
+    }
+    
+    // Save dietary labels from quick edit
     if ($is_quick_edit && isset($_POST['wtm_dietary_labels_present'])) {
         // The dietary labels field was in the quick edit form
         // If checkboxes are unchecked, they won't be in POST, so we need to check if any were sent
@@ -654,13 +704,17 @@ function wtm_add_top_level_menu() {
     add_menu_page('Webtalize Menu','Webtalize Menu','manage_options','wtm-main','wtm_main_page','dashicons-food',25.5);
     // add quick links as submenus
     add_submenu_page('wtm-main','All Menu Items','All Menu Items','edit_posts','edit.php?post_type=menu_item');
-    // Add New Menu Item - use callback to redirect
-    add_submenu_page('wtm-main','Add New Menu Item','Add New Menu Item','edit_posts','wtm-add-new-menu-item','wtm_redirect_to_new_menu_item');
     // add Menu Categories link to manage taxonomy terms
     add_submenu_page('wtm-main','Menu Categories','Menu Categories','manage_options','edit-tags.php?taxonomy=menu_category&post_type=menu_item');
-    add_submenu_page('wtm-main','CSV Import','CSV Import','edit_posts','wtm-csv-import','wtm_csv_import_page');
+    
+    // Add Items Hub - groups all add/import methods
+    add_submenu_page('wtm-main','Add Items','Add Items','edit_posts','wtm-add-items','wtm_add_items_hub_page');
+    // Submenu items under Add Items (these will appear as submenu items for quick access)
+    add_submenu_page('wtm-add-items','Add New Menu Item','Add New Menu Item','edit_posts','wtm-add-new-menu-item','wtm_redirect_to_new_menu_item');
+    add_submenu_page('wtm-add-items','CSV Import','CSV Import','edit_posts','wtm-csv-import','wtm_csv_import_page');
+    add_submenu_page('wtm-add-items','Bulk Add Items','Bulk Add Items','edit_posts','wtm-bulk-add','wtm_bulk_add_page');
+    
     add_submenu_page('wtm-main','Reorder Items','Reorder Items','edit_posts','wtm-reorder','wtm_reorder_page');
-    add_submenu_page('wtm-main','Bulk Add Items','Bulk Add Items','edit_posts','wtm-bulk-add','wtm_bulk_add_page');
     add_submenu_page('wtm-main','Opening Hours','Opening Hours','manage_options','wtm-opening-hours','wtm_opening_hours_page');
     add_submenu_page('wtm-main','Settings','Settings','manage_options','wtm-settings','wtm_settings_page');
 }
@@ -693,6 +747,72 @@ function wtm_main_page() {
 function wtm_redirect_to_new_menu_item() {
     wp_redirect(admin_url('post-new.php?post_type=menu_item'));
     exit;
+}
+
+/**
+ * Add Items Hub Page - Central location for all add/import methods
+ */
+function wtm_add_items_hub_page() {
+    echo '<div class="wrap">';
+    echo '<h1>' . esc_html__('Add Menu Items', 'webtalize-menu') . '</h1>';
+    echo '<p class="description">' . esc_html__('Choose a method to add menu items to your restaurant menu.', 'webtalize-menu') . '</p>';
+    
+    echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 30px;">';
+    
+    // Add New Menu Item
+    echo '<div style="border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+    echo '<h2 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">';
+    echo '<span style="font-size: 24px;">➕</span> ' . esc_html__('Add New Menu Item', 'webtalize-menu');
+    echo '</h2>';
+    echo '<p>' . esc_html__('Create a single menu item manually with full control over all fields.', 'webtalize-menu') . '</p>';
+    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=menu_item')) . '" class="button button-primary button-large" style="width: 100%; text-align: center; margin-top: 15px;">' . esc_html__('Add New Item', 'webtalize-menu') . '</a>';
+    echo '</div>';
+    
+    // CSV Import
+    echo '<div style="border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+    echo '<h2 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">';
+    echo '<span style="font-size: 24px;">📊</span> ' . esc_html__('CSV Import', 'webtalize-menu');
+    echo '</h2>';
+    echo '<p>' . esc_html__('Import multiple menu items from a CSV file. Perfect for bulk imports from spreadsheets.', 'webtalize-menu') . '</p>';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=menu_item&page=wtm-csv-import')) . '" class="button button-primary button-large" style="width: 100%; text-align: center; margin-top: 15px;">' . esc_html__('Import CSV', 'webtalize-menu') . '</a>';
+    echo '</div>';
+    
+    // Bulk Add Items
+    echo '<div style="border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+    echo '<h2 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">';
+    echo '<span style="font-size: 24px;">📝</span> ' . esc_html__('Bulk Add Items', 'webtalize-menu');
+    echo '</h2>';
+    echo '<p>' . esc_html__('Add multiple items quickly using a table-style interface. Great for entering items one by one.', 'webtalize-menu') . '</p>';
+    echo '<a href="' . esc_url(admin_url('edit.php?post_type=menu_item&page=wtm-bulk-add')) . '" class="button button-primary button-large" style="width: 100%; text-align: center; margin-top: 15px;">' . esc_html__('Bulk Add', 'webtalize-menu') . '</a>';
+    echo '</div>';
+    
+    // API Sync
+    echo '<div style="border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+    echo '<h2 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">';
+    echo '<span style="font-size: 24px;">🔄</span> ' . esc_html__('API Sync', 'webtalize-menu');
+    echo '</h2>';
+    echo '<p>' . esc_html__('Sync menu items automatically from the GlobalFood API. Configure API settings and sync prices.', 'webtalize-menu') . '</p>';
+    echo '<a href="' . esc_url(admin_url('admin.php?page=wtm-settings')) . '#api-sync" class="button button-primary button-large" style="width: 100%; text-align: center; margin-top: 15px;">' . esc_html__('Configure API Sync', 'webtalize-menu') . '</a>';
+    echo '</div>';
+    
+    echo '</div>';
+    
+    // Quick stats
+    $item_count = wp_count_posts('menu_item');
+    $published_count = isset($item_count->publish) ? $item_count->publish : 0;
+    $draft_count = isset($item_count->draft) ? $item_count->draft : 0;
+    
+    echo '<div style="margin-top: 30px; padding: 15px; background: #f0f6fc; border-left: 4px solid #2271b1; border-radius: 4px;">';
+    echo '<h3 style="margin-top: 0;">' . esc_html__('Quick Stats', 'webtalize-menu') . '</h3>';
+    echo '<p style="margin-bottom: 0;">';
+    echo '<strong>' . esc_html__('Total Menu Items:', 'webtalize-menu') . '</strong> ' . number_format($published_count) . ' ' . esc_html__('published', 'webtalize-menu');
+    if ($draft_count > 0) {
+        echo ' | ' . number_format($draft_count) . ' ' . esc_html__('drafts', 'webtalize-menu');
+    }
+    echo '</p>';
+    echo '</div>';
+    
+    echo '</div>';
 }
 
 // Settings page for menu display options
@@ -981,6 +1101,15 @@ function wtm_settings_page() {
             $('.tab-content').hide();
             $(target + '-settings').show();
         });
+        
+        // Handle hash navigation (e.g., from external links)
+        if (window.location.hash) {
+            var hash = window.location.hash;
+            var $tab = $('.nav-tab[href="' + hash + '"]');
+            if ($tab.length) {
+                $tab.trigger('click');
+            }
+        }
         
         // Test connection button
         $('#wtm-test-connection-btn').on('click', function() {
@@ -1702,7 +1831,8 @@ function wtm_enqueue_admin_scripts($hook) {
 
     // Enqueue Quick Edit script on the menu items list table
     if ($hook === 'edit.php' && isset($_GET['post_type']) && $_GET['post_type'] === 'menu_item') {
-        wp_enqueue_script('wtm-quick-edit', WTM_PLUGIN_URL . 'js/wtm-quick-edit.js', array('jquery', 'wp-data', 'wp-i18n', 'wp-hooks'), '1.0.1', true);
+        wp_enqueue_media();
+        wp_enqueue_script('wtm-quick-edit', WTM_PLUGIN_URL . 'js/wtm-quick-edit.js', array('jquery', 'wp-data', 'wp-i18n', 'wp-hooks'), '1.0.3', true);
     }
     
     // Enqueue scripts for Menu Category management (Image Upload)

@@ -33,17 +33,31 @@
 .wtm-menu-item{padding:1rem 0;border-bottom:1px solid var(--wtm-border-light, rgba(0,0,0,0.08));transition:background-color 0.2s ease;background-color:var(--wtm-bg-color, transparent)}
 .wtm-menu-item:hover{background-color:var(--wtm-hover-bg, rgba(0,0,0,0.02));margin-left:-0.5rem;margin-right:-0.5rem;padding-left:0.5rem;padding-right:0.5rem;border-radius:6px}
 .wtm-menu-item:last-child{border-bottom:none}
+/* Menu item content wrapper */
+.wtm-item-content{width:100%}
+/* Image and dietary labels row - side by side */
+.wtm-item-image-labels-row{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:1rem;margin-top:0.75rem;margin-bottom:0.5rem;flex-wrap:wrap}
+/* Menu item image - now in same row as dietary labels, positioned on the right */
+.wtm-item-image{flex-shrink:0;flex-grow:0;width:120px;height:80px;overflow:hidden;border-radius:8px;box-shadow:0 2px 8px var(--wtm-shadow, rgba(0,0,0,0.12));background:var(--wtm-card-bg, #f5f5f5);display:flex;align-items:center;justify-content:center;margin-left:auto;order:2}
+.wtm-item-image img{max-width:100%;max-height:80px;width:auto;height:auto;object-fit:contain;display:block;transition:transform 0.3s ease}
+.wtm-menu-item:hover .wtm-item-image img{transform:scale(1.2)}
 /* 3-column layout - only when enabled */
 .wtm-menu-items.wtm-three-column{display:grid;gap:1.5rem;grid-template-columns:1fr;list-style:none}
 @media (min-width:768px){.wtm-menu-items.wtm-three-column{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:1024px){.wtm-menu-items.wtm-three-column{grid-template-columns:repeat(3,1fr)}}
-.wtm-menu-items.wtm-three-column .wtm-menu-item{border-bottom:none;padding:1rem;background-color:var(--wtm-card-bg, #fff);border-radius:6px;box-shadow:0 1px 3px var(--wtm-shadow, rgba(0,0,0,0.1));list-style:none}
-.wtm-menu-items.wtm-three-column .wtm-menu-item:hover{background-color:var(--wtm-hover-bg, rgba(0,0,0,0.02));margin-left:0;margin-right:0;padding-left:1rem;padding-right:1rem;box-shadow:0 2px 6px var(--wtm-shadow, rgba(0,0,0,0.15))}
+.wtm-menu-items.wtm-three-column .wtm-menu-item{border-bottom:none;padding:0;background-color:var(--wtm-card-bg, #fff);border-radius:6px;box-shadow:0 1px 3px var(--wtm-shadow, rgba(0,0,0,0.1));list-style:none;flex-direction:column;gap:0;overflow:hidden}
+.wtm-menu-items.wtm-three-column .wtm-menu-item:hover{background-color:var(--wtm-hover-bg, rgba(0,0,0,0.02));margin-left:0;margin-right:0;padding-left:0;padding-right:0;box-shadow:0 2px 6px var(--wtm-shadow, rgba(0,0,0,0.15))}
+.wtm-menu-items.wtm-three-column .wtm-item-image-labels-row{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:1rem;margin-top:0.75rem;margin-bottom:0.5rem;flex-wrap:wrap}
+.wtm-menu-items.wtm-three-column .wtm-item-image{flex-shrink:0;flex-grow:0;width:120px;height:80px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-top:0!important;margin-bottom:0!important;margin-left:auto;order:2}
+.wtm-menu-items.wtm-three-column .wtm-item-image img{max-width:100%;max-height:80px;width:auto;height:auto;object-fit:contain}
+.wtm-menu-items.wtm-three-column .wtm-item-dietary-labels{flex:0 1 auto;min-width:0;margin-top:0!important;order:1;margin-right:auto}
+.wtm-menu-items.wtm-three-column .wtm-item-content{padding:1rem}
 .wtm-item-header{display:flex!important;justify-content:space-between!important;align-items:flex-start!important;flex-wrap:nowrap!important;gap:0.75rem!important;width:100%!important;position:relative!important}
 .wtm-item-name{font-weight:600!important;margin:0!important;flex:1 1 auto!important;min-width:0!important;font-size:18px!important;color:var(--wtm-heading-color, inherit)!important;line-height:1.4!important;word-wrap:break-word!important;max-width:calc(100% - 100px)!important}
 .wtm-item-price{color:var(--wtm-price-color, var(--wp--preset--color--accent, #d4a574))!important;font-weight:700!important;margin-left:auto!important;white-space:nowrap!important;font-size:20px!important;flex-shrink:0!important;flex-grow:0!important;display:inline-block!important;visibility:visible!important;opacity:1!important;min-width:fit-content!important;position:relative!important;z-index:1!important}
 .wtm-item-price-empty{display:none!important}
-.wtm-item-dietary-labels{clear:both!important;width:100%!important;margin-top:0.75rem!important}
+.wtm-item-dietary-labels{flex:1;min-width:0;margin-top:0!important}
+.wtm-item-image-labels-row .wtm-item-dietary-labels{flex:0 1 auto;min-width:0;order:1;margin-right:auto}
 .wtm-item-description{color:var(--wtm-description-color, currentColor);opacity:0.7;margin-top:0.5rem!important;line-height:1.6!important;font-size:16px!important}
 .wtm-no-items,.wtm-no-categories{color:var(--wtm-description-color, currentColor);opacity:0.6;font-style:italic;padding:1rem 0}
 
@@ -117,7 +131,8 @@
     --wtm-badge-can-text: #f57f17;
 }
 
-.wtm-item-dietary-labels{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;margin-bottom:0.5rem}
+.wtm-item-dietary-labels{display:flex;flex-wrap:wrap;gap:0.5rem}
+.wtm-item-image-labels-row .wtm-item-dietary-labels{margin-top:0!important;margin-bottom:0!important}
 .wtm-dietary-badge{display:inline-flex;align-items:center;gap:0.35rem;padding:0.35rem 0.7rem;background:var(--wtm-badge-vegan-bg, rgba(0,0,0,0.05));border:1px solid var(--wtm-badge-vegan-border, rgba(0,0,0,0.1));border-radius:4px;font-size:0.85em;font-weight:500;color:var(--wtm-badge-vegan-text, currentColor);transition:all 0.2s ease}
 .wtm-dietary-badge:hover{background:var(--wtm-hover-bg, rgba(0,0,0,0.08));border-color:var(--wtm-border-light, rgba(0,0,0,0.15));transform:translateY(-1px)}
 .wtm-dietary-icon{font-size:1.1em;line-height:1}
